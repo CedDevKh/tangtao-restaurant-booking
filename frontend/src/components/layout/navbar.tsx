@@ -8,7 +8,9 @@ import {
   Sheet,
   SheetContent,
   SheetTrigger,
-  SheetClose
+  SheetClose,
+  SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -19,12 +21,33 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Menu, UtensilsCrossed, User } from "lucide-react";
+
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function Navbar() {
+// Inline SVG icons to prevent hydration errors
+const MenuIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+);
+
+const UtensilsCrossedIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 2l1.5 1.5m0 0l3.5 3.5m0 0L12 3m0 0l4 4m0 0l3.5-3.5M12 3v18m-6-6h12"/>
+  </svg>
+);
+
+const UserIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+  </svg>
+);
+
+export default function Navbar({ className }: { className?: string }) {
   const { isLoggedIn, user, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
@@ -128,6 +151,9 @@ export default function Navbar() {
             <Link href="/profile">Profile</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+            <Link href="/settings">Settings</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
             <Link href="/bookings">My Bookings</Link>
         </DropdownMenuItem>
         {user?.is_staff && (
@@ -148,10 +174,10 @@ export default function Navbar() {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className={cn("sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60", className)}>
       <div className="container flex h-16 items-center">
         <Link href="/" className="mr-6 flex items-center gap-2">
-          <UtensilsCrossed className="h-6 w-6 text-primary" />
+          <UtensilsCrossedIcon className="h-6 w-6 text-primary" />
           <span className="font-headline text-2xl font-bold">Tangtao</span>
         </Link>
 
@@ -178,15 +204,17 @@ export default function Navbar() {
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="h-6 w-6" />
+                <MenuIcon className="h-6 w-6" />
                 <span className="sr-only">Toggle navigation menu</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left">
+              <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+              <SheetDescription className="sr-only">Main navigation links for the application</SheetDescription>
                 <div className="flex flex-col h-full">
                     <div className="border-b pb-4">
                         <Link href="/" className="flex items-center gap-2">
-                            <UtensilsCrossed className="h-6 w-6 text-primary" />
+                            <UtensilsCrossedIcon className="h-6 w-6 text-primary" />
                             <span className="font-headline text-xl font-bold">Tangtao</span>
                         </Link>
                     </div>

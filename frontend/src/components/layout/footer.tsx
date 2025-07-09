@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { UtensilsCrossed, Twitter, Facebook, Instagram } from "lucide-react";
 import { Button } from "../ui/button";
+import { cn } from "@/lib/utils";
 
-export default function Footer() {
+export default function Footer({ className }: { className?: string }) {
   return (
-    <footer className="border-t bg-card">
+    <footer className={cn("border-t bg-card hidden sm:block", className)}>
       <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div>

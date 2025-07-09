@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Disable source maps to avoid build issues
+  productionBrowserSourceMaps: false,
+  // Ensure proper static file serving
+  trailingSlash: false,
 };
 
 export default nextConfig;

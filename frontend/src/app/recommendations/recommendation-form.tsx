@@ -8,7 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Lightbulb, Loader2 } from "lucide-react";
+
+// Inline SVG icons to prevent hydration errors
+const LightbulbIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+);
+
+const Loader2Icon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m6 4v4m-6 6v-4m-6-6v4m-6-4h4m6-6h4m6 6h-4m-6 6h-4"/>
+  </svg>
+);
+
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -16,7 +29,7 @@ function SubmitButton() {
     <Button type="submit" disabled={pending} className="w-full">
       {pending ? (
         <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
           Getting Recommendations...
         </>
       ) : (

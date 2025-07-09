@@ -4,6 +4,9 @@ import { useEffect } from 'react';
 
 export default function PWARegistration() {
   useEffect(() => {
+    // Temporarily disable service worker registration for debugging
+    console.log('Service Worker registration temporarily disabled');
+    /*
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('/sw.js')
@@ -14,6 +17,7 @@ export default function PWARegistration() {
           console.log('Service Worker registration failed:', error);
         });
     }
+    */
   }, []);
 
   return null;

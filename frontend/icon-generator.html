@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TangTao Icon Generator</title>
+</head>
+<body>
+    <h1>TangTao PWA Icon Generator</h1>
+    <canvas id="canvas" width="512" height="512" style="border: 1px solid #ccc; margin: 20px;"></canvas>
+    <br>
+    <button onclick="generateIcon(192)" style="margin: 10px; padding: 10px;">Download 192x192 Icon</button>
+    <button onclick="generateIcon(512)" style="margin: 10px; padding: 10px;">Download 512x512 Icon</button>
+    
+    <script>
+        function generateIcon(size) {
+            const canvas = document.getElementById('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Create gradient background
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#3b82f6');
+            gradient.addColorStop(1, '#1d4ed8');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Add white circle background
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size*0.35, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Add restaurant icon text
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.25}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🍽️', size / 2, size / 2);
+            
+            // Add app name
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.08}px Arial`;
+            ctx.fillText('TangTao', size / 2, size * 0.8);
+            
+            // Download
+            const link = document.createElement('a');
+            link.download = `icon-${size}x${size}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        // Generate initial 512x512 preview
+        window.onload = () => generatePreview();
+        
+        function generatePreview() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+            gradient.addColorStop(0, '#3b82f6');
+            gradient.addColorStop(1, '#1d4ed8');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.beginPath();
+            ctx.arc(256, 256, 180, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 128px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🍽️', 256, 256);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText('TangTao', 256, 410);
+        }
+    </script>
+</body>
+</html>

@@ -5,7 +5,47 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Users, MapPin, Percent } from 'lucide-react';
+
+// Inline SVG icons to prevent hydration errors
+const CalendarIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+);
+
+const ClockIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="12,6 12,12 16,14"/>
+  </svg>
+);
+
+const UsersIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+  </svg>
+);
+
+const MapPinIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+  </svg>
+);
+
+const PercentIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <line x1="19" y1="5" x2="5" y2="19"/>
+    <circle cx="6.5" cy="6.5" r="2.5"/>
+    <circle cx="17.5" cy="17.5" r="2.5"/>
+  </svg>
+);
+
 
 function BookingCard({ booking }: { booking: Booking }) {
     return (
@@ -27,7 +67,7 @@ function BookingCard({ booking }: { booking: Booking }) {
                              <div>
                                 <h3 className="font-headline text-xl font-bold">{booking.restaurant.name}</h3>
                                 <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                    <MapPin className="h-4 w-4" />
+                                    <MapPinIcon className="h-4 w-4" />
                                     {booking.restaurant.location}
                                 </p>
                             </div>
@@ -40,10 +80,10 @@ function BookingCard({ booking }: { booking: Booking }) {
                         </div>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> {booking.date}</div>
-                        <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> {booking.time}</div>
-                        <div className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> {booking.guests} Guests</div>
-                        <div className="flex items-center gap-2"><Percent className="h-4 w-4 text-primary" /> {booking.discount}% Off</div>
+                        <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-primary" /> {booking.date}</div>
+                        <div className="flex items-center gap-2"><ClockIcon className="h-4 w-4 text-primary" /> {booking.time}</div>
+                        <div className="flex items-center gap-2"><UsersIcon className="h-4 w-4 text-primary" /> {booking.guests} Guests</div>
+                        <div className="flex items-center gap-2"><PercentIcon className="h-4 w-4 text-primary" /> {booking.discount}% Off</div>
                     </CardContent>
                      <CardFooter>
                         {booking.status === 'Upcoming' && (

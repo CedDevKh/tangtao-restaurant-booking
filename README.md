@@ -13,10 +13,14 @@ A modern, full-stack restaurant booking platform built with Next.js and Django. 
 ### For Users
 - **Restaurant Discovery**: Browse restaurants with detailed information, photos, and ratings
 - **Advanced Filtering**: Filter by cuisine type, rating, price range, and more
+- **AI-Powered Recommendations**: Get personalized restaurant suggestions based on preferences
+- **Mobile-First Design**: Optimized mobile experience with bottom navigation
 - **User Authentication**: Secure registration and login system
+- **Booking Management**: View and manage restaurant reservations
 - **User Profiles**: Manage personal information and preferences
-- **Responsive Design**: Optimized for desktop, tablet, and mobile devices
+- **Theme Support**: Light, dark, and system theme options
 - **Real-time Search**: Dynamic restaurant search and filtering
+- **PWA Ready**: Progressive Web App capabilities for mobile installation
 
 ### For Administrators
 - **Restaurant Management**: Full CRUD operations for restaurant listings
@@ -31,6 +35,10 @@ A modern, full-stack restaurant booking platform built with Next.js and Django. 
 - **Authentication**: Token-based authentication with secure session management
 - **Error Handling**: Comprehensive error handling and user feedback
 - **Loading States**: Smooth loading experiences with skeleton screens
+- **Hydration-Safe**: Zero hydration errors with proper SSR/client rendering
+- **Mobile Navigation**: Accessible bottom navigation for mobile devices
+- **Theme System**: Complete dark/light mode with system preference detection
+- **PWA Features**: Service worker, manifest, and offline-ready capabilities
 
 ## 🛠️ Tech Stack
 
@@ -39,9 +47,11 @@ A modern, full-stack restaurant booking platform built with Next.js and Django. 
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **UI Components**: Radix UI + Custom Components
-- **Icons**: Lucide React
+- **Icons**: Inline SVGs (optimized for hydration)
 - **State Management**: React Context API
 - **HTTP Client**: Fetch API with custom error handling
+- **PWA**: Service Worker, Web App Manifest
+- **Theme System**: Light/Dark/System theme support
 
 ### Backend
 - **Framework**: Django 5.2.4
@@ -139,6 +149,15 @@ npm run dev
 - **Backend API**: http://localhost:8000
 - **Django Admin**: http://localhost:8000/admin
 
+### 5. Test Key Features
+
+- **Homepage**: Browse featured restaurants and search
+- **Restaurants**: Filter and browse all restaurants
+- **Mobile Navigation**: Test bottom navigation on mobile devices
+- **Theme Switching**: Try light/dark mode in Settings
+- **AI Recommendations**: Get personalized restaurant suggestions
+- **Search**: Test real-time search functionality
+
 ## 📁 Project Structure
 
 ```
@@ -165,17 +184,26 @@ Tangtao/
 │   │   │   ├── auth/          # Authentication pages
 │   │   │   ├── admin/         # Admin dashboard
 │   │   │   ├── restaurants/   # Restaurant pages
+│   │   │   ├── search/        # Search functionality
+│   │   │   ├── bookings/      # Booking management
+│   │   │   ├── recommendations/ # AI recommendations
+│   │   │   ├── settings/      # User settings & theme
 │   │   │   └── page.tsx       # Home page
 │   │   ├── components/        # Reusable components
 │   │   │   ├── ui/            # UI components
-│   │   │   └── layout/        # Layout components
-│   │   ├── contexts/          # React contexts
+│   │   │   └── layout/        # Layout components (navbar, footer, mobile nav)
+│   │   ├── contexts/          # React contexts (Auth, Theme)
 │   │   ├── lib/               # Utilities and API
 │   │   └── hooks/             # Custom React hooks
-│   ├── public/                # Static assets
+│   ├── public/                # Static assets & PWA files
+│   │   ├── icons/             # App icons for PWA
+│   │   ├── manifest.json      # PWA manifest
+│   │   ├── sw.js             # Service worker
+│   │   └── theme-init.js     # Theme initialization
 │   ├── package.json           # Node.js dependencies
 │   └── tailwind.config.ts     # Tailwind configuration
 ├── start_app.bat              # Windows startup script
+├── start_frontend.bat         # Frontend startup script
 └── README.md                  # This file
 ```
 
@@ -209,6 +237,24 @@ Create a `.env.local` file in `frontend/` with:
 ```env
 NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000
 ```
+
+## 📱 Mobile & PWA Features
+
+### Mobile Navigation
+- **Bottom Navigation**: Easy thumb-friendly navigation on mobile devices
+- **Responsive Design**: Optimized layouts for all screen sizes
+- **Touch Interactions**: Smooth touch gestures and animations
+
+### Progressive Web App
+- **Installable**: Can be installed as a native app on mobile devices
+- **Offline Support**: Basic offline functionality with service worker
+- **App-like Experience**: Native app feel with proper theming and navigation
+
+### Theme System
+- **Light Mode**: Clean, bright interface for daytime use
+- **Dark Mode**: Eye-friendly dark interface for low-light conditions
+- **System Mode**: Automatically follows device preference
+- **Persistent**: Theme choice persists across sessions
 
 ## 🚀 Deployment
 
@@ -264,6 +310,15 @@ NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000
 - `PUT /api/admin/restaurants/{id}/` - Update restaurant (admin only)
 - `DELETE /api/admin/restaurants/{id}/` - Delete restaurant (admin only)
 
+### Booking Endpoints
+
+- `GET /api/bookings/` - List user bookings
+- `POST /api/bookings/` - Create new booking
+- `GET /api/bookings/{id}/` - Get booking details
+- `PUT /api/bookings/{id}/` - Update booking
+- `DELETE /api/bookings/{id}/` - Cancel booking
+- `DELETE /api/admin/restaurants/{id}/` - Delete restaurant (admin only)
+
 ### Query Parameters
 
 **Restaurant Listing**:
@@ -299,7 +354,31 @@ npm run typecheck
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📝 Development Notes
+### Development Notes
+
+### Recent Updates (Latest)
+
+**� Hydration & Performance Fixes**:
+- Replaced all Lucide React icons with inline SVGs to eliminate hydration errors
+- Added client-side mounting checks to prevent SSR/client mismatches
+- Implemented comprehensive theme system with proper hydration handling
+
+**📱 Mobile-First Optimization**:
+- Added mobile bottom navigation with accessibility features
+- Implemented responsive design patterns throughout
+- Enhanced PWA configuration with proper manifest and service worker
+
+**🎨 UI/UX Improvements**:
+- Added dark/light/system theme support with persistent preferences
+- Created settings page for user customization
+- Enhanced search functionality with real-time filtering
+- Added skeleton loaders and proper loading states
+
+**🚀 New Features**:
+- AI-powered restaurant recommendations
+- Advanced search and filtering capabilities
+- Mobile-optimized booking management
+- Progressive Web App installation support
 
 ### Database Models
 
@@ -325,20 +404,28 @@ npm run typecheck
 
 ### Performance Considerations
 
-- Database query optimization
-- Image optimization with Next.js
-- Lazy loading for restaurant listings
+- Database query optimization with proper indexing
+- Image optimization with Next.js Image component
+- Lazy loading for restaurant listings and images
 - Efficient filtering and pagination
-- Caching strategies ready for implementation
+- Client-side caching with React state management
+- Hydration-safe rendering to prevent layout shifts
+- Service worker caching for offline functionality
+- Optimized bundle size with tree shaking
+- Inline SVGs for better performance and fewer requests
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
 1. **CORS Errors**: Ensure backend CORS settings include frontend URL
-2. **Authentication Issues**: Check token storage and API headers
+2. **Authentication Issues**: Check token storage and API headers  
 3. **Database Errors**: Verify database connection and migrations
 4. **Build Errors**: Check TypeScript types and dependency versions
+5. **Hydration Errors**: Ensure client/server rendering consistency (now fixed)
+6. **Theme Issues**: Check theme initialization script loading
+7. **Mobile Navigation**: Verify bottom navigation visibility on mobile devices
+8. **PWA Installation**: Check manifest.json and service worker registration
 
 ### Debug Mode
 
@@ -386,12 +473,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Django](https://www.djangoproject.com/) for the robust backend framework
 - [Tailwind CSS](https://tailwindcss.com/) for the utility-first CSS framework
 - [Radix UI](https://www.radix-ui.com/) for accessible UI components
-- [Lucide](https://lucide.dev/) for beautiful icons
+- Community contributors for SVG icons and design inspiration
 
 ## 📞 Support
 
-For support, email [your-email@domain.com] or create an issue in the repository.
+For support, create an issue in the repository or contact the development team.
 
 ---
 
-**Built with ❤️ by the Tangtao Team**
+**Built with ❤️ for the modern web - Mobile-first, PWA-ready, and performance-optimized**

@@ -33,7 +33,7 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
                     {restaurant.name}
                 </Link>
             </CardTitle>
-            <div className="flex items-center gap-1 text-sm font-semibold text-amber-400">
+            <div className="flex items-center gap-1 text-sm font-semibold text-yellow-500">
                 <Star className="h-4 w-4 fill-current" />
                 <span>{restaurant.rating}</span>
             </div>
@@ -49,7 +49,7 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
       <CardFooter className="p-4 pt-0">
         {firstDiscount && (
            <Link href={`/restaurants/${restaurant.id}`} className="w-full">
-                <Badge className="w-full justify-center bg-accent py-2 text-lg font-bold text-accent-foreground hover:bg-accent/80">
+                <Badge className="w-full justify-center bg-yellow-500 py-2 text-lg font-bold text-black hover:bg-yellow-600">
                     {firstDiscount.discount}% off at {firstDiscount.time}
                 </Badge>
             </Link>

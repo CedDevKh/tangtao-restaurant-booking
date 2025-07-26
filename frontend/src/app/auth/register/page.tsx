@@ -90,11 +90,21 @@ export default function RegisterPage() {
     }
 
     try {
-      const response = await register(formData);
+      // Convert empty string date_of_birth to null
+      const payload = {
+        ...formData,
+        date_of_birth: formData.date_of_birth === '' ? null : formData.date_of_birth,
+      };
+      const response = await register(payload);
       console.log('Registration successful:', response);
       router.push('/auth/login?message=Registration successful! Please sign in.');
     } catch (err: any) {
-      setError(err.message || 'Registration failed');
+      // Custom error for duplicate email
+      if (err.message && err.message.toLowerCase().includes('email')) {
+        setError('An account with this email already exists. Please log in or reset your password.');
+      } else {
+        setError(err.message || 'Registration failed');
+      }
     } finally {
       setLoading(false);
     }

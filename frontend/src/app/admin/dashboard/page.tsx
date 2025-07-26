@@ -1,4 +1,6 @@
+
 'use client';
+import { getAllBookings, BookingResponse } from '@/lib/booking-api';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -71,7 +73,14 @@ interface RestaurantFormData {
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
 
+const timeOptions = Array.from({ length: 48 }, (_, i) => {
+  const hour = String(Math.floor(i / 2)).padStart(2, '0');
+  const min = i % 2 === 0 ? '00' : '30';
+  return `${hour}:${min}`;
+});
+
 export default function AdminDashboard() {
+  const [bookings, setBookings] = useState<BookingResponse[]>([]);
   const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -118,12 +127,274 @@ export default function AdminDashboard() {
     { value: 'other', label: 'Other' },
   ];
 
+  // Admin Bookings Tab
+  const renderBookingsTab = () => {
+    const getStatusBadgeVariant = (status: string) => {
+      switch (status) {
+        case 'confirmed': return 'default';
+        case 'pending': return 'secondary';
+        case 'cancelled': return 'destructive';
+        case 'completed': return 'outline';
+        default: return 'default';
+      }
+    };
+
+    const formatBookingTime = (dateString: string) => {
+      const date = new Date(dateString);
+      return {
+        date: date.toLocaleDateString('en-US', { 
+          weekday: 'short', 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        }),
+        time: date.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        })
+      };
+    };
+
+    // Calculate booking statistics
+    const bookingStats = {
+      total: Array.isArray(bookings) ? bookings.length : 0,
+      pending: Array.isArray(bookings) ? bookings.filter(b => b.status === 'pending').length : 0,
+      confirmed: Array.isArray(bookings) ? bookings.filter(b => b.status === 'confirmed').length : 0,
+      completed: Array.isArray(bookings) ? bookings.filter(b => b.status === 'completed').length : 0,
+      cancelled: Array.isArray(bookings) ? bookings.filter(b => b.status === 'cancelled').length : 0,
+    };
+
+    return (
+      <div className="space-y-6 mt-6">
+        {/* Booking Statistics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold">{bookingStats.total}</div>
+              <div className="text-xs text-muted-foreground">Total Bookings</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-yellow-600">{bookingStats.pending}</div>
+              <div className="text-xs text-muted-foreground">Pending</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-green-600">{bookingStats.confirmed}</div>
+              <div className="text-xs text-muted-foreground">Confirmed</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-blue-600">{bookingStats.completed}</div>
+              <div className="text-xs text-muted-foreground">Completed</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-red-600">{bookingStats.cancelled}</div>
+              <div className="text-xs text-muted-foreground">Cancelled</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Bookings Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-semibold">All Bookings ({Array.isArray(bookings) ? bookings.length : 0})</h3>
+            <p className="text-sm text-muted-foreground">
+              Manage and view all customer bookings across the platform
+            </p>
+          </div>
+        </div>
+
+        {/* Bookings List */}
+        {Array.isArray(bookings) && bookings.length > 0 ? (
+          <div className="space-y-4">
+            {bookings.map(booking => {
+              const { date, time } = formatBookingTime(booking.booking_time);
+              return (
+                <Card key={booking.id} className="overflow-hidden">
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Booking Info */}
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-semibold text-lg">
+                              {booking.restaurant_name || 'Unknown Restaurant'}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              {booking.offer_title || 'Direct Booking'}
+                            </p>
+                          </div>
+                          <Badge variant={getStatusBadgeVariant(booking.status)} className="capitalize">
+                            {booking.status}
+                          </Badge>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Booking ID:</span>
+                            <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                              #{booking.id}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Party Size:</span>
+                            <span>{booking.number_of_people} {booking.number_of_people === 1 ? 'guest' : 'guests'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Date & Time Info */}
+                      <div className="space-y-3">
+                        <h5 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
+                          Reservation Details
+                        </h5>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Date:</span>
+                            <span>{date}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Time:</span>
+                            <span>{time}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Created:</span>
+                            <span>{new Date(booking.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Customer Info */}
+                      <div className="space-y-3">
+                        <h5 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
+                          Customer Information
+                        </h5>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Name:</span>
+                            <span>
+                              {booking.diner?.first_name && booking.diner?.last_name 
+                                ? `${booking.diner.first_name} ${booking.diner.last_name}`
+                                : booking.diner?.username || 'N/A'
+                              }
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Username:</span>
+                            <span>{booking.diner?.username || 'N/A'}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Email:</span>
+                            <span>{booking.diner?.email || 'N/A'}</span>
+                          </div>
+                          
+                          {booking.diner?.phone_number && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Phone:</span>
+                              <span>{booking.diner.phone_number}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-2 flex gap-2">
+                          {booking.status === 'pending' && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => updateBookingStatus(booking.id, 'confirmed')}
+                              >
+                                Confirm
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="destructive"
+                                onClick={() => updateBookingStatus(booking.id, 'cancelled')}
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          )}
+                          {booking.status === 'confirmed' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => updateBookingStatus(booking.id, 'completed')}
+                            >
+                              Mark Complete
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-medium">No bookings found</h3>
+                <p className="text-muted-foreground">
+                  When customers make reservations, they will appear here.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  };
+
   useEffect(() => {
+    console.log('Admin Dashboard: useEffect triggered');
+    console.log('Admin Dashboard: user object:', user);
+    console.log('Admin Dashboard: user.is_staff:', user?.is_staff);
+    
     // Check if user is admin
     if (!user || !user.is_staff) {
+      console.log('Admin Dashboard: User is not admin, redirecting...');
       router.push('/');
       return;
     }
+    
+    // Fetch all bookings for admin
+    console.log('Admin Dashboard: Fetching bookings for admin...');
+    getAllBookings()
+      .then((bookingsData) => {
+        console.log('Admin Dashboard: Bookings fetched successfully:', bookingsData);
+        // Ensure bookingsData is always an array
+        if (Array.isArray(bookingsData)) {
+          setBookings(bookingsData);
+        } else if (bookingsData && Array.isArray(bookingsData.results)) {
+          setBookings(bookingsData.results);
+        } else {
+          console.warn('Bookings data is not in expected format:', bookingsData);
+          setBookings([]);
+        }
+      })
+      .catch((error) => {
+        console.error('Admin Dashboard: Error fetching bookings:', error);
+        setBookings([]); // Set empty array on error
+      });
+      
     fetchData();
   }, [user, router]);
 
@@ -223,6 +494,59 @@ export default function AdminDashboard() {
       toast({
         title: "Error",
         description: `An error occurred while updating the restaurant.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateBookingStatus = async (bookingId: number, newStatus: string) => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/bookings/${bookingId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        // Refresh bookings data
+        getAllBookings()
+          .then((bookingsData) => {
+            console.log('Admin Dashboard: Bookings refreshed after status update:', bookingsData);
+            // Ensure bookingsData is always an array
+            if (Array.isArray(bookingsData)) {
+              setBookings(bookingsData);
+            } else if (bookingsData && Array.isArray(bookingsData.results)) {
+              setBookings(bookingsData.results);
+            } else {
+              console.warn('Bookings data is not in expected format:', bookingsData);
+              setBookings([]);
+            }
+          })
+          .catch((error) => {
+            console.error('Admin Dashboard: Error refreshing bookings:', error);
+            setBookings([]);
+          });
+        
+        toast({
+          title: "Success",
+          description: `Booking status updated to ${newStatus}.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update booking status.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while updating the booking.",
         variant: "destructive",
       });
     }
@@ -457,6 +781,9 @@ export default function AdminDashboard() {
     );
   }
 
+        <TabsContent value="bookings">
+          {renderBookingsTab()}
+        </TabsContent>
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex justify-between items-center">
@@ -517,6 +844,7 @@ export default function AdminDashboard() {
       <Tabs defaultValue="restaurants" className="space-y-4">
         <TabsList>
           <TabsTrigger value="restaurants">Restaurants</TabsTrigger>
+          <TabsTrigger value="bookings">Bookings</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -654,6 +982,10 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="bookings" className="space-y-4">
+          {renderBookingsTab()}
         </TabsContent>
 
         <TabsContent value="analytics">
@@ -849,13 +1181,21 @@ export default function AdminDashboard() {
 
               <div className="space-y-2">
                 <Label htmlFor="opening_time">Opening Time</Label>
-                <Input
-                  id="opening_time"
-                  type="time"
+                <Select
                   value={formData.opening_time}
-                  onChange={(e) => handleInputChange('opening_time', e.target.value)}
-                  className={formErrors.opening_time ? 'border-red-500' : ''}
-                />
+                  onValueChange={(value) => handleInputChange('opening_time', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select opening time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeOptions.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {formErrors.opening_time && (
                   <p className="text-sm text-red-500">{formErrors.opening_time}</p>
                 )}
@@ -863,13 +1203,21 @@ export default function AdminDashboard() {
 
               <div className="space-y-2">
                 <Label htmlFor="closing_time">Closing Time</Label>
-                <Input
-                  id="closing_time"
-                  type="time"
+                <Select
                   value={formData.closing_time}
-                  onChange={(e) => handleInputChange('closing_time', e.target.value)}
-                  className={formErrors.closing_time ? 'border-red-500' : ''}
-                />
+                  onValueChange={(value) => handleInputChange('closing_time', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select closing time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeOptions.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {formErrors.closing_time && (
                   <p className="text-sm text-red-500">{formErrors.closing_time}</p>
                 )}

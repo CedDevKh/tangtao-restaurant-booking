@@ -1,5 +1,53 @@
 # Tangtao - Restaurant Booking Platform
 
+## 📊 Project Overview for Managers (2025)
+
+Tangtao is a full-stack, production-ready restaurant booking platform designed for both end-users and administrators. It leverages a modern tech stack (Next.js, Django, PostgreSQL) and is built for scalability, mobile-first UX, and extensibility.
+
+### Key Implementations
+
+- **Frontend (Next.js + TypeScript):**
+  - Dynamic restaurant listing and detail pages (data fetched from backend)
+  - Admin dashboard for CRUD operations on restaurants
+  - User authentication, profile management, and booking management
+  - AI-powered restaurant recommendations and advanced search/filtering
+  - Responsive, mobile-first UI with dark/light/system theme support
+  - PWA features: installable, offline support, service worker, manifest
+  - Modern UI/UX: Tailwind CSS, Radix UI, custom components, inline SVG icons
+
+- **Backend (Django + Django REST Framework):**
+  - RESTful API for restaurants, users, and bookings
+  - Custom user model with extended profile fields
+  - Restaurant model supports flexible image URLs, time fields, and rich metadata
+  - Admin endpoints for secure management (CRUD, stats, analytics-ready)
+  - Token-based authentication, CORS, and security best practices
+  - PostgreSQL for production, SQLite for development
+
+### Current Features
+
+- **For Users:**
+  - Browse, search, and filter restaurants with real-time updates
+  - View detailed restaurant pages (dynamic, not static)
+  - Make and manage bookings
+  - Personalized AI recommendations
+  - Mobile-optimized navigation and PWA install
+
+- **For Admins:**
+  - Add, edit, and delete restaurants via dashboard
+  - Set opening/closing times, image URLs, and all metadata
+  - View platform stats and analytics (extensible)
+  - Manage featured/active status for restaurants
+
+### Architecture Highlights
+
+- **API-first:** All data flows through a documented REST API
+- **Type Safety:** TypeScript (frontend) and Python (backend)
+- **Modern DevOps:** .env-based config, scripts for setup/start, Vercel-ready frontend
+- **Security:** Token auth, CORS, XSS/SQLi protection, password validation
+- **Performance:** SSR, lazy loading, optimized images, skeleton loaders
+
+For more details, see the full documentation below or contact the dev team.
+
 A modern, full-stack restaurant booking platform built with Next.js and Django. Tangtao allows users to discover restaurants, make reservations, and provides administrators with powerful tools to manage their restaurant listings.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)

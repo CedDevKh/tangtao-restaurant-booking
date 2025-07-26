@@ -10,42 +10,42 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 356 78% 56%; /* Red accent */
+    --primary: 45 93% 47%; /* Dark golden yellow */
     --primary-foreground: 0 0% 98%;
-    --secondary: 210 40% 96.1%;
+    --secondary: 240 5% 84%; /* Light silver */
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
+    --muted: 240 5% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 356 78% 56%; /* Red accent */
+    --accent: 45 93% 47%; /* Dark golden yellow accent */
     --accent-foreground: 0 0% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 356 78% 56%;
+    --border: 240 6% 90%; /* Silver border */
+    --input: 240 6% 90%;
+    --ring: 45 93% 47%; /* Dark yellow ring */
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 240 10% 3.9%; /* Darker background */
+    --background: 240 10% 3.9%; /* Dark background */
     --foreground: 210 40% 98%;
     --card: 240 10% 3.9%;
     --card-foreground: 210 40% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 356 78% 56%; /* Red accent */
-    --primary-foreground: 0 0% 98%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 48 96% 53%; /* Brighter yellow for dark mode */
+    --primary-foreground: 240 10% 3.9%;
+    --secondary: 240 4% 16%; /* Dark silver */
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 356 78% 56%; /* Red accent */
-    --accent-foreground: 0 0% 98%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 48 96% 53%; /* Bright yellow accent for dark mode */
+    --accent-foreground: 240 10% 3.9%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 356 78% 56%;
+    --border: 240 4% 16%; /* Dark silver border */
+    --input: 240 4% 16%;
+    --ring: 48 96% 53%; /* Bright yellow ring for dark mode */
   }
 }
 

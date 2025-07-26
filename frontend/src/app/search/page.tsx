@@ -205,7 +205,7 @@ export default function SearchPage() {
                     <div className="flex">
                       <div className="relative w-24 h-24 flex-shrink-0">
                         <img
-                          src={restaurant.image_url || 'https://placehold.co/200x200/f3f4f6/9ca3af?text=Restaurant'}
+                          src={restaurant.image_url || '/restaurant-interior.jpg'}
                           alt={restaurant.name}
                           className="w-full h-full object-cover rounded-l-lg"
                         />

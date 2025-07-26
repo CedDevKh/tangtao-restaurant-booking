@@ -1,0 +1,28 @@
+{
+  "name": "tangtao-restaurant-booking",
+  "version": "1.0.0",
+  "description": "Restaurant booking platform with Django backend and Next.js frontend",
+  "scripts": {
+    "build": "echo 'Building both frontend and backend'",
+    "start": "echo 'Starting application'",
+    "install-backend": "cd backend && pip install -r requirements.txt",
+    "install-frontend": "cd frontend && npm install",
+    "build-frontend": "cd frontend && npm run build",
+    "start-frontend": "cd frontend && npm start",
+    "migrate": "cd backend/core && python manage.py migrate",
+    "collectstatic": "cd backend/core && python manage.py collectstatic --noinput"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/tangtao.git"
+  },
+  "keywords": [
+    "restaurant",
+    "booking",
+    "django",
+    "nextjs",
+    "typescript"
+  ],
+  "author": "Tangtao Team",
+  "license": "MIT"
+}

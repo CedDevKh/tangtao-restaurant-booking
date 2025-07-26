@@ -35,7 +35,14 @@ export default function LoginPage() {
       // Redirect to home page
       router.push('/');
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      // Custom error for user not found or wrong password
+      if (err.message && err.message.toLowerCase().includes('invalid username/email')) {
+        setError('No account found with this email. Please register first.');
+      } else if (err.message && err.message.toLowerCase().includes('password')) {
+        setError('Incorrect password. Please try again.');
+      } else {
+        setError(err.message || 'Login failed');
+      }
     } finally {
       setLoading(false);
     }

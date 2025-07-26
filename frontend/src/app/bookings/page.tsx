@@ -1,5 +1,7 @@
-import { bookings } from '@/lib/data';
-import type { Booking } from '@/lib/types';
+"use client";
+import { useEffect, useState } from 'react';
+import { getUserBookings } from '@/lib/booking-api';
+import type { BookingResponse } from '@/lib/booking-api';
 import Image from 'next/image';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -47,32 +49,26 @@ const PercentIcon = ({ className }: { className?: string }) => (
 );
 
 
-function BookingCard({ booking }: { booking: Booking }) {
+function BookingCard({ booking }: { booking: BookingResponse }) {
     return (
         <Card className="overflow-hidden">
             <div className="grid grid-cols-1 sm:grid-cols-3">
-                <div className="sm:col-span-1">
-                    <Image 
-                        src={booking.restaurant.imageUrl}
-                        alt={booking.restaurant.name}
-                        width={300}
-                        height={300}
-                        className="h-full w-full object-cover"
-                        data-ai-hint={booking.restaurant.dataAiHint}
-                    />
+                <div className="sm:col-span-1 flex items-center justify-center bg-gray-100">
+                    {/* Optionally add a restaurant image if available */}
+                    <span className="text-2xl font-bold text-gray-400">🍽️</span>
                 </div>
                 <div className="sm:col-span-2">
                     <CardHeader>
                         <div className="flex justify-between items-start">
-                             <div>
-                                <h3 className="font-headline text-xl font-bold">{booking.restaurant.name}</h3>
+                            <div>
+                                <h3 className="font-headline text-xl font-bold">{booking.restaurant_name || 'Unknown Restaurant'}</h3>
                                 <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                                     <MapPinIcon className="h-4 w-4" />
-                                    {booking.restaurant.location}
+                                    {booking.offer_title ? booking.offer_title : 'Standard Booking'}
                                 </p>
                             </div>
                             <Badge 
-                                variant={booking.status === 'Upcoming' ? 'default' : booking.status === 'Completed' ? 'secondary' : 'destructive'}
+                                variant={booking.status === 'pending' ? 'default' : booking.status === 'completed' ? 'secondary' : booking.status === 'cancelled' ? 'destructive' : 'default'}
                                 className="capitalize"
                             >
                                 {booking.status}
@@ -80,19 +76,18 @@ function BookingCard({ booking }: { booking: Booking }) {
                         </div>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-primary" /> {booking.date}</div>
-                        <div className="flex items-center gap-2"><ClockIcon className="h-4 w-4 text-primary" /> {booking.time}</div>
-                        <div className="flex items-center gap-2"><UsersIcon className="h-4 w-4 text-primary" /> {booking.guests} Guests</div>
-                        <div className="flex items-center gap-2"><PercentIcon className="h-4 w-4 text-primary" /> {booking.discount}% Off</div>
+                        <div className="flex items-center gap-2"><CalendarIcon className="h-4 w-4 text-primary" /> {new Date(booking.booking_time).toLocaleDateString()}</div>
+                        <div className="flex items-center gap-2"><ClockIcon className="h-4 w-4 text-primary" /> {new Date(booking.booking_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="flex items-center gap-2"><UsersIcon className="h-4 w-4 text-primary" /> {booking.number_of_people} Guests</div>
                     </CardContent>
-                     <CardFooter>
-                        {booking.status === 'Upcoming' && (
+                    <CardFooter>
+                        {booking.status === 'pending' && (
                             <div className="flex gap-2">
                                 <Button variant="outline">Cancel</Button>
                                 <Button>Modify</Button>
                             </div>
                         )}
-                         {booking.status === 'Completed' && (
+                        {booking.status === 'completed' && (
                             <Button>Book Again</Button>
                         )}
                     </CardFooter>
@@ -103,9 +98,30 @@ function BookingCard({ booking }: { booking: Booking }) {
 }
 
 export default function BookingsPage() {
-    const upcomingBookings = bookings.filter(b => b.status === 'Upcoming');
-    const completedBookings = bookings.filter(b => b.status === 'Completed');
-    const cancelledBookings = bookings.filter(b => b.status === 'Cancelled');
+    const [bookings, setBookings] = useState<BookingResponse[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+
+    useEffect(() => {
+        getUserBookings()
+            .then((data) => {
+                // If API returns { results: [...] }, use results; else use data directly
+                if (Array.isArray(data)) {
+                    setBookings(data);
+                } else if (data && Array.isArray(data.results)) {
+                    setBookings(data.results);
+                } else {
+                    setBookings([]);
+                }
+            })
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const upcomingBookings = bookings.filter(b => b.status === 'pending' || b.status === 'confirmed');
+    const completedBookings = bookings.filter(b => b.status === 'completed');
+    const cancelledBookings = bookings.filter(b => b.status === 'cancelled');
 
     return (
         <div className="container mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">

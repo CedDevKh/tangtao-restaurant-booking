@@ -29,64 +29,65 @@ import { cn } from "@/lib/utils";
 export default function SearchBar() {
   const [date, setDate] = useState<Date | undefined>(new Date());
 
+  // Example locations for dropdown
+  const locations = ["All", "Downtown", "Uptown", "Suburbs", "Waterfront"];
+  const [selectedLocation, setSelectedLocation] = useState<string>(locations[0]);
+
   return (
-    <div className="mx-auto w-full max-w-5xl rounded-lg bg-card p-4 shadow-lg">
-      <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <div className="lg:col-span-2">
+    <div className="mx-auto w-full max-w-5xl bg-card shadow-lg">
+      {/* Mobile: Eatigo-style compact horizontal layout */}
+      <div className="sm:hidden">
+        <div className="flex items-center gap-2 p-3 bg-card rounded-lg">
+          {/* Location dropdown */}
+          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+            <SelectTrigger className="w-24 h-10 text-sm border-none bg-transparent">
+              <MapPin className="h-4 w-4 text-muted-foreground mr-1" />
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map(loc => (
+                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* Search input - takes remaining space */}
+          <Input 
+            id="search" 
+            placeholder="Search restaurant" 
+            className="flex-1 h-10 border-none bg-muted/30 rounded-md text-sm"
+          />
+          
+          {/* Search button */}
+          <Button size="icon" className="h-10 w-10 bg-yellow-500 hover:bg-yellow-600 text-black">
+            <Search className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Desktop: Simplified layout without date/time */}
+      <div className="hidden sm:block p-4 rounded-lg">
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
             <label htmlFor="location" className="mb-2 block text-sm font-medium text-muted-foreground">Location</label>
             <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                <Input id="location" placeholder="City or restaurant name" className="pl-10" />
+              <MapPin className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input id="location" placeholder="City or restaurant name" className="pl-10" />
             </div>
-        </div>
-        
-        <div>
-            <label htmlFor="date" className="mb-2 block text-sm font-medium text-muted-foreground">Date</label>
-            <Popover>
-            <PopoverTrigger asChild>
-                <Button
-                variant={"outline"}
-                className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                )}
-                >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, "PPP") : <span>Pick a date</span>}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                initialFocus
-                />
-            </PopoverContent>
-            </Popover>
-        </div>
+          </div>
 
-        <div>
-            <label htmlFor="time" className="mb-2 block text-sm font-medium text-muted-foreground">Time</label>
-             <Select defaultValue="1900">
-                <SelectTrigger>
-                     <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <SelectValue placeholder="Select time" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="1800">6:00 PM</SelectItem>
-                    <SelectItem value="1830">6:30 PM</SelectItem>
-                    <SelectItem value="1900">7:00 PM</SelectItem>
-                    <SelectItem value="1930">7:30 PM</SelectItem>
-                    <SelectItem value="2000">8:00 PM</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
+          <div className="flex-1">
+            <label htmlFor="search-desktop" className="mb-2 block text-sm font-medium text-muted-foreground">Restaurant</label>
+            <Input id="search-desktop" placeholder="Search restaurant name or cuisine" />
+          </div>
 
-        <Button size="lg" className="w-full lg:col-start-5">
-          <Search className="mr-2 h-5 w-5" />
-          Search
-        </Button>
+          <div className="flex items-end">
+            <Button size="lg" className="h-10 bg-yellow-500 hover:bg-yellow-600 text-black">
+              <Search className="mr-2 h-5 w-5" />
+              Search
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

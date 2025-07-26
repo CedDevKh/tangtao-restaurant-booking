@@ -287,13 +287,14 @@ export default function RestaurantsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8">
-            <h1 className="mb-4 text-center font-headline text-5xl font-bold">Find Your Next Meal</h1>
-            <SearchBar />
-        </div>
-        
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
+    <div className="container mx-auto px-2 py-4 sm:px-6 lg:px-8">
+      {/* Eatigo-style search bar at very top, no hero/welcome banner */}
+      <div className="mb-4 sm:mb-8 sticky top-0 z-20 bg-background pt-2 pb-2 sm:static sm:bg-transparent">
+        <SearchBar />
+      </div>
+
+      {/* ...existing code for restaurant grid and filters... */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
             <aside className="hidden lg:block">
                 <Filters 
                   selectedCuisines={selectedCuisines}
@@ -406,11 +407,12 @@ export default function RestaurantsPage() {
                             </p>
                           )}
                           <div className="mt-4">
-                            <Button asChild className="w-full">
-                              <Link href={`/restaurants/${restaurant.id}`}>
-                                View Details
-                              </Link>
-                            </Button>
+                            <Link
+                              href={`/restaurants/${restaurant.id}`}
+                              className="w-full inline-block text-center bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded transition-colors"
+                            >
+                              View Details
+                            </Link>
                           </div>
                         </CardContent>
                       </Card>

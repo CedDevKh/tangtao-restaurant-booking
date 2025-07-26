@@ -92,10 +92,19 @@ export default function Navbar({ className }: { className?: string }) {
 
   const getUserDisplayName = (user: any) => {
     if (!user) return 'User';
+    let displayName = '';
     if (user.first_name && user.last_name) {
-      return `${user.first_name} ${user.last_name}`;
+      displayName = `${user.first_name} ${user.last_name}`;
+    } else {
+      displayName = user.username || 'User';
     }
-    return user.username || 'User';
+    
+    // Add (DEV) indicator for admin users
+    if (user.is_staff) {
+      displayName += ' (DEV)';
+    }
+    
+    return displayName;
   };
 
   const NavLink = ({ href, label }: { href: string; label: string }) => (
@@ -174,11 +183,11 @@ export default function Navbar({ className }: { className?: string }) {
   );
 
   return (
-    <header className={cn("sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60", className)}>
+    <header className={cn("sticky top-0 z-50 w-full border-b bg-gradient-to-r from-background to-silver-50/50 backdrop-blur supports-[backdrop-filter]:bg-background/60", className)}>
       <div className="container flex h-16 items-center">
         <Link href="/" className="mr-6 flex items-center gap-2">
           <UtensilsCrossedIcon className="h-6 w-6 text-primary" />
-          <span className="font-headline text-2xl font-bold">Tangtao</span>
+          <span className="font-headline text-2xl font-bold text-primary">Tangtao</span>
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">

@@ -13,10 +13,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ProfilePage() {
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -24,6 +28,11 @@ export default function ProfilePage() {
     email: '',
     phone_number: '',
     username: '',
+  });
+  const [settings, setSettings] = useState({
+    emailNotifications: true,
+    pushNotifications: true,
+    marketingEmails: false,
   });
   const router = useRouter();
 
@@ -96,12 +105,18 @@ export default function ProfilePage() {
     <div className="container mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-6">
             <header>
-                <h1 className="font-headline text-3xl font-bold tracking-tight">Profile</h1>
+                <h1 className="font-headline text-3xl font-bold tracking-tight">
+                  Profile
+                  {user.is_staff && <span className="ml-2 text-blue-600 text-xl">(DEV)</span>}
+                </h1>
                 <p className="mt-2 text-muted-foreground">
                   Manage your account settings and personal information.
                 </p>
                 <div className="mt-2 text-sm text-muted-foreground">
-                  Account Type: <span className="font-medium capitalize">{user.user_type}</span>
+                  Account Type: <span className="font-medium capitalize">
+                    {user.user_type}
+                    {user.is_staff && <span className="ml-1 text-blue-600 font-bold">(DEV)</span>}
+                  </span>
                   {user.email_verified && <span className="ml-4 text-green-600">✓ Email Verified</span>}
                 </div>
             </header>
@@ -192,6 +207,120 @@ export default function ProfilePage() {
                  <div className="border-t px-6 py-4">
                      <Button>Update Password</Button>
                 </div>
+            </Card>
+
+            {/* Settings Section */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Settings</CardTitle>
+                    <CardDescription>Manage your app preferences and account settings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Theme Settings */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="text-base font-medium">Theme</Label>
+                            <p className="text-sm text-muted-foreground">Choose your preferred theme</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant={theme === 'light' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setTheme('light')}
+                            >
+                                Light
+                            </Button>
+                            <Button
+                                variant={theme === 'dark' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setTheme('dark')}
+                            >
+                                Dark
+                            </Button>
+                            <Button
+                                variant={theme === 'system' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setTheme('system')}
+                            >
+                                Auto
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Notification Settings */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label className="text-base font-medium">Email Notifications</Label>
+                                <p className="text-sm text-muted-foreground">Receive booking confirmations and updates</p>
+                            </div>
+                            <Switch
+                                checked={settings.emailNotifications}
+                                onCheckedChange={(checked) =>
+                                    setSettings(prev => ({ ...prev, emailNotifications: checked }))
+                                }
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label className="text-base font-medium">Push Notifications</Label>
+                                <p className="text-sm text-muted-foreground">Get notified about your reservations</p>
+                            </div>
+                            <Switch
+                                checked={settings.pushNotifications}
+                                onCheckedChange={(checked) =>
+                                    setSettings(prev => ({ ...prev, pushNotifications: checked }))
+                                }
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label className="text-base font-medium">Marketing Emails</Label>
+                                <p className="text-sm text-muted-foreground">Receive special offers and promotions</p>
+                            </div>
+                            <Switch
+                                checked={settings.marketingEmails}
+                                onCheckedChange={(checked) =>
+                                    setSettings(prev => ({ ...prev, marketingEmails: checked }))
+                                }
+                            />
+                        </div>
+                    </div>
+
+                    {/* Account Actions */}
+                    <div className="pt-4 border-t">
+                        <div className="space-y-4">
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => router.push('/privacy')}
+                            >
+                                Privacy Policy
+                            </Button>
+                            
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => router.push('/terms')}
+                            >
+                                Terms of Service
+                            </Button>
+
+                            <Button
+                                variant="destructive"
+                                className="w-full"
+                                onClick={() => {
+                                    logout();
+                                    router.push('/');
+                                }}
+                            >
+                                Sign Out
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
             </Card>
         </div>
     </div>

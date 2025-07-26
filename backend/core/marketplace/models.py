@@ -39,9 +39,9 @@ class Restaurant(models.Model):
     price_range = models.IntegerField(choices=PRICE_RANGE_CHOICES, default=2)
     capacity = models.IntegerField(default=50, help_text="Maximum number of guests")
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal('0.0'), validators=[MinValueValidator(Decimal('0.0')), MaxValueValidator(Decimal('5.0'))])
-    image_url = models.URLField(blank=True, null=True, help_text="Main restaurant image")
-    opening_time = models.TimeField(blank=True, null=True)
-    closing_time = models.TimeField(blank=True, null=True)
+    image_url = models.TextField(blank=True, null=True, help_text="Main restaurant image")  # Allow any length
+    opening_time = models.CharField(max_length=64, blank=True, null=True, help_text="Opening time (any format)")
+    closing_time = models.CharField(max_length=64, blank=True, null=True, help_text="Closing time (any format)")
     is_active = models.BooleanField(default=True)
     is_featured = models.BooleanField(default=False, help_text="Featured restaurants appear on homepage")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -83,7 +83,8 @@ class Booking(models.Model):
         ('completed', 'Completed'),
     )
     diner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bookings')
-    offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='bookings')
+    offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
     booking_time = models.DateTimeField(help_text="The time the diner plans to arrive for the offer")
     number_of_people = models.IntegerField()
     status = models.CharField(
@@ -95,7 +96,12 @@ class Booking(models.Model):
     updated_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Booking for {self.diner.username} at {self.offer.restaurant.name} ({self.offer.title})"
+        if self.offer:
+            return f"Booking for {self.diner.username} at {self.offer.restaurant.name} ({self.offer.title})"
+        elif self.restaurant:
+            return f"Booking for {self.diner.username} at {self.restaurant.name} (Direct Booking)"
+        else:
+            return f"Booking for {self.diner.username} (No restaurant specified)"
 
     class Meta:
         verbose_name = 'Booking'

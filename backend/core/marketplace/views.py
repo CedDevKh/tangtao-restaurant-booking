@@ -33,8 +33,21 @@ class OfferViewSet(viewsets.ModelViewSet):
     serializer_class = OfferSerializer
 
 class BookingViewSet(viewsets.ModelViewSet):
-    queryset = Booking.objects.all()
     serializer_class = BookingSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Booking.objects.all()
+        return Booking.objects.filter(diner=user)
+
+    def perform_create(self, serializer):
+        offer = serializer.validated_data.get('offer', None)
+        restaurant = serializer.validated_data.get('restaurant', None)
+        # If only offer is provided, set restaurant from offer
+        if offer and not restaurant:
+            restaurant = offer.restaurant
+        serializer.save(diner=self.request.user, restaurant=restaurant)
 
 # Admin-specific views
 class AdminRestaurantViewSet(viewsets.ModelViewSet):

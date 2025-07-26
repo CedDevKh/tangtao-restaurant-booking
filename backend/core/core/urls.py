@@ -20,6 +20,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
 from users.views import UserViewSet, UserRegistrationView, UserLoginView
 from marketplace.views import RestaurantViewSet, OfferViewSet, BookingViewSet, AdminRestaurantViewSet
+from .health import health_check
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'restaurants', RestaurantViewSet)
 router.register(r'offers', OfferViewSet)
-router.register(r'bookings', BookingViewSet)
+router.register(r'bookings', BookingViewSet, basename='booking')
 router.register(r'admin/restaurants', AdminRestaurantViewSet, basename='admin-restaurants')
 
 urlpatterns = [
@@ -37,4 +38,5 @@ urlpatterns = [
     path('api-token-auth/', obtain_auth_token, name='api_token_auth'),
     path('auth/register/', UserRegistrationView.as_view(), name='user_register'),
     path('auth/login/', UserLoginView.as_view(), name='user_login'),
+    path('health/', health_check, name='health_check'),
 ]

@@ -9,6 +9,18 @@ class RestaurantSerializer(serializers.ModelSerializer):
         model = Restaurant
         fields = '__all__'
 
+    def validate_image_url(self, value):
+        # Optionally, add custom validation for URLs if needed
+        return value
+
+    def validate_opening_time(self, value):
+        # Accept any string, optionally add custom logic
+        return value
+
+    def validate_closing_time(self, value):
+        # Accept any string, optionally add custom logic
+        return value
+
 class OfferSerializer(serializers.ModelSerializer):
     restaurant_name = serializers.CharField(source='restaurant.name', read_only=True)
 
@@ -19,11 +31,23 @@ class OfferSerializer(serializers.ModelSerializer):
 class BookingSerializer(serializers.ModelSerializer):
     diner = UserSerializer(read_only=True)
     offer_title = serializers.CharField(source='offer.title', read_only=True)
-    restaurant_name = serializers.CharField(source='offer.restaurant.name', read_only=True)
+    restaurant_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
         fields = '__all__'
+
+    def get_restaurant_name(self, obj):
+        if obj.restaurant:
+            return obj.restaurant.name
+        elif obj.offer and obj.offer.restaurant:
+            return obj.offer.restaurant.name
+        return None
+
+    def validate(self, data):
+        if not data.get('offer') and not data.get('restaurant'):
+            raise serializers.ValidationError("Either offer or restaurant must be provided.")
+        return data
 
 # Admin-specific serializers
 class AdminRestaurantSerializer(serializers.ModelSerializer):
@@ -35,12 +59,25 @@ class AdminRestaurantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Restaurant
         fields = '__all__'
+
+    def validate_image_url(self, value):
+        return value
+
+    def validate_opening_time(self, value):
+        return value
+
+    def validate_closing_time(self, value):
+        return value
     
     def get_total_offers(self, obj):
         return obj.offers.count()
     
     def get_total_bookings(self, obj):
-        return Booking.objects.filter(offer__restaurant=obj).count()
+        # Count bookings from both offers and direct restaurant bookings
+        from django.db.models import Q
+        return Booking.objects.filter(
+            Q(offer__restaurant=obj) | Q(restaurant=obj)
+        ).count()
 
 class AdminRestaurantCreateUpdateSerializer(serializers.ModelSerializer):
     owner_id = serializers.IntegerField(write_only=True, required=False)
@@ -49,6 +86,15 @@ class AdminRestaurantCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Restaurant
         fields = '__all__'
+
+    def validate_image_url(self, value):
+        return value
+
+    def validate_opening_time(self, value):
+        return value
+
+    def validate_closing_time(self, value):
+        return value
     
     def validate_owner_id(self, value):
         from users.models import User

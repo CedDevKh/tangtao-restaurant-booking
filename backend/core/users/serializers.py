@@ -34,6 +34,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'email': {'required': True},
             'first_name': {'required': True},
             'last_name': {'required': True},
+            'date_of_birth': {'required': False, 'allow_null': True},
         }
 
     def validate_username(self, value):
@@ -84,18 +85,19 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def validate_date_of_birth(self, value):
-        """Validate age requirement (must be at least 13 years old)"""
-        if value:
-            today = timezone.now().date()
-            age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
-            if age < 13:
-                raise serializers.ValidationError(
-                    "You must be at least 13 years old to register."
-                )
-            if value > today:
-                raise serializers.ValidationError(
-                    "Date of birth cannot be in the future."
-                )
+        """Validate age requirement (must be at least 13 years old if provided)"""
+        if value in [None, '', 'null']:
+            return None
+        today = timezone.now().date()
+        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        if age < 13:
+            raise serializers.ValidationError(
+                "You must be at least 13 years old to register."
+            )
+        if value > today:
+            raise serializers.ValidationError(
+                "Date of birth cannot be in the future."
+            )
         return value
 
     def validate_terms_accepted(self, value):

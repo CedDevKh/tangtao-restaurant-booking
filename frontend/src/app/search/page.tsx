@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -70,11 +71,17 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
 
   // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Get the search query from URL parameters
+    const urlQuery = searchParams.get('q');
+    if (urlQuery) {
+      setSearchQuery(urlQuery);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchRestaurants = async () => {
@@ -112,29 +119,29 @@ export default function SearchPage() {
   // Don't render until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white px-4 py-4 shadow-sm">
+      <div className="min-h-screen bg-background">
+        <div className="bg-card px-4 py-4 shadow-sm">
           <div className="relative mb-4">
-            <div className="h-10 bg-gray-200 rounded-full animate-pulse"></div>
+            <div className="h-10 bg-muted rounded-full animate-pulse"></div>
           </div>
           <div className="flex items-center justify-between">
             <div className="flex space-x-2">
-              <div className="h-8 w-16 bg-gray-200 rounded-full animate-pulse"></div>
-              <div className="h-8 w-16 bg-gray-200 rounded-full animate-pulse"></div>
+              <div className="h-8 w-16 bg-muted rounded-full animate-pulse"></div>
+              <div className="h-8 w-16 bg-muted rounded-full animate-pulse"></div>
             </div>
-            <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-4 w-16 bg-muted rounded animate-pulse"></div>
           </div>
         </div>
         <div className="px-4 py-4">
           <div className="space-y-4">
             {Array.from({ length: 5 }, (_, i) => (
-              <div key={i} className="bg-white rounded-lg p-0 animate-pulse">
+              <div key={i} className="bg-card rounded-lg p-0 animate-pulse">
                 <div className="flex">
-                  <div className="w-24 h-24 bg-gray-200 rounded-l-lg"></div>
+                  <div className="w-24 h-24 bg-muted rounded-l-lg"></div>
                   <div className="flex-1 p-3">
-                    <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-4 bg-muted rounded mb-2"></div>
+                    <div className="h-3 bg-muted rounded w-3/4 mb-2"></div>
+                    <div className="h-3 bg-muted rounded w-1/2"></div>
                   </div>
                 </div>
               </div>
@@ -146,17 +153,17 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Search Header */}
-      <div className="bg-white px-4 py-4 shadow-sm sticky top-0 z-10">
+      <div className="bg-card px-4 py-4 shadow-sm sticky top-0 z-10">
         <div className="relative mb-4">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search restaurants, cuisines, locations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-gray-100 border-0 rounded-full"
+            className="pl-10 bg-muted border-0 rounded-full"
             autoFocus
           />
         </div>
@@ -171,7 +178,7 @@ export default function SearchPage() {
               Sort by
             </Button>
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             {filteredRestaurants.length} results
           </p>
         </div>
@@ -185,11 +192,11 @@ export default function SearchPage() {
               <Card key={i} className="animate-pulse">
                 <CardContent className="p-0">
                   <div className="flex">
-                    <div className="w-24 h-24 bg-gray-200 rounded-l-lg"></div>
+                    <div className="w-24 h-24 bg-muted rounded-l-lg"></div>
                     <div className="flex-1 p-3">
-                      <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-3/4 mb-2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                      <div className="h-4 bg-muted rounded mb-2"></div>
+                      <div className="h-3 bg-muted rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-muted rounded w-1/2"></div>
                     </div>
                   </div>
                 </CardContent>
@@ -217,14 +224,14 @@ export default function SearchPage() {
                       </div>
                       
                       <div className="flex-1 p-3">
-                        <h3 className="font-semibold text-gray-900 mb-1 text-sm">
+                        <h3 className="font-semibold text-foreground mb-1 text-sm">
                           {restaurant.name}
                         </h3>
-                        <p className="text-xs text-gray-600 mb-2">
+                        <p className="text-xs text-muted-foreground mb-2">
                           {restaurant.cuisine_type}
                         </p>
                         
-                        <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <div className="flex items-center space-x-2">
                             <div className="flex items-center">
                               <StarIcon className="w-3 h-3 text-yellow-400 fill-current mr-1" />
@@ -257,11 +264,11 @@ export default function SearchPage() {
           </div>
         ) : (
           <div className="text-center py-12">
-            <SearchIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <SearchIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
               {searchQuery ? 'No restaurants found' : 'Start searching'}
             </h3>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               {searchQuery 
                 ? `Try searching for different keywords or check your spelling.`
                 : 'Search for restaurants, cuisines, or locations to get started.'

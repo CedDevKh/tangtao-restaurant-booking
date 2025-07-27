@@ -71,7 +71,7 @@ interface RestaurantFormData {
   is_featured: boolean;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
+const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 const timeOptions = Array.from({ length: 48 }, (_, i) => {
   const hour = String(Math.floor(i / 2)).padStart(2, '0');
@@ -124,6 +124,8 @@ export default function AdminDashboard() {
     { value: 'mediterranean', label: 'Mediterranean' },
     { value: 'korean', label: 'Korean' },
     { value: 'vietnamese', label: 'Vietnamese' },
+    { value: 'khmer', label: 'Khmer' },
+    { value: 'fine_dining', label: 'Fine Dining' },
     { value: 'other', label: 'Other' },
   ];
 
@@ -502,14 +504,80 @@ export default function AdminDashboard() {
   const updateBookingStatus = async (bookingId: number, newStatus: string) => {
     try {
       const token = getAuthToken();
-      const response = await fetch(`${API_URL}/api/bookings/${bookingId}/`, {
+      const url = `${API_URL}/api/bookings/${bookingId}/`;
+      console.log('updateBookingStatus: Making request to:', url);
+      
+      // Find the booking to get its data
+      const booking = bookings.find(b => b.id === bookingId);
+      if (!booking) {
+        console.error('Booking not found:', bookingId);
+        toast({
+          title: "Error",
+          description: "Booking not found.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log('updateBookingStatus: Found booking:', booking);
+      console.log('updateBookingStatus: Booking offer field:', booking.offer);
+      console.log('updateBookingStatus: Booking restaurant field:', booking.restaurant);
+      
+      const updatePayload: any = {
+        status: newStatus,
+        booking_time: booking.booking_time,
+        number_of_people: booking.number_of_people,
+      };
+      
+      // Include offer if it exists and is not null
+      if (booking.offer !== null && booking.offer !== undefined) {
+        updatePayload.offer = booking.offer;
+        console.log('updateBookingStatus: Including offer field:', booking.offer);
+      }
+      // Include restaurant if it exists and is not null (fallback)
+      else if (booking.restaurant !== null && booking.restaurant !== undefined) {
+        updatePayload.restaurant = booking.restaurant;
+        console.log('updateBookingStatus: Including restaurant field:', booking.restaurant);
+      }
+      // If neither offer nor restaurant exists, we need to identify the restaurant from restaurant_name
+      else if (booking.restaurant_name) {
+        console.log('updateBookingStatus: No offer/restaurant ID found, trying to find restaurant by name:', booking.restaurant_name);
+        // Try to find restaurant ID from the restaurants list
+        const restaurant = restaurants.find(r => r.name === booking.restaurant_name);
+        if (restaurant) {
+          updatePayload.restaurant = restaurant.id;
+          console.log('updateBookingStatus: Found restaurant ID by name:', restaurant.id);
+        } else {
+          console.error('updateBookingStatus: Could not find restaurant for booking');
+          toast({
+            title: "Error",
+            description: "Could not identify restaurant for this booking.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        console.error('updateBookingStatus: Booking has no offer, restaurant, or restaurant_name');
+        toast({
+          title: "Error",
+          description: "Booking is missing required restaurant/offer information.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log('updateBookingStatus: Final update payload:', updatePayload);
+      
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Authorization': `Token ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(updatePayload),
       });
+
+      console.log('updateBookingStatus: Response status:', response.status);
 
       if (response.ok) {
         // Refresh bookings data
@@ -536,6 +604,8 @@ export default function AdminDashboard() {
           description: `Booking status updated to ${newStatus}.`,
         });
       } else {
+        const errorData = await response.text();
+        console.error('updateBookingStatus: Error response:', errorData);
         toast({
           title: "Error",
           description: "Failed to update booking status.",

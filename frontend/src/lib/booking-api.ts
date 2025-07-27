@@ -11,7 +11,8 @@ export interface BookingPayload {
 
 export interface BookingResponse {
   id: number;
-  offer: number;
+  offer?: number | null;
+  restaurant?: number | null;
   booking_time: string;
   number_of_people: number;
   status: string;

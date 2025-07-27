@@ -43,7 +43,7 @@ interface BackendRestaurant {
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
 
-const cuisines = ['italian', 'japanese', 'french', 'mexican', 'indian', 'chinese', 'american', 'thai'];
+const cuisines = ['italian', 'japanese', 'french', 'mexican', 'indian', 'chinese', 'american', 'thai', 'mediterranean', 'korean', 'vietnamese', 'khmer', 'fine_dining', 'other'];
 const ratings = [4.5, 4.0, 3.5, 0];
 const priceRanges = [1, 2, 3, 4];
 

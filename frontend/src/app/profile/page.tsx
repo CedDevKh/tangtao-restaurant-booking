@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { toast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -75,6 +76,13 @@ export default function ProfilePage() {
     console.log('Password change requested');
   };
 
+  const getUserInitials = (user: any) => {
+    if (!user) return 'U';
+    const firstInitial = user.first_name?.[0] || '';
+    const lastInitial = user.last_name?.[0] || '';
+    return (firstInitial + lastInitial) || user.username?.[0]?.toUpperCase() || 'U';
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -127,17 +135,38 @@ export default function ProfilePage() {
                     <CardTitle>Personal Information</CardTitle>
                     <CardDescription>Update your personal details here.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="username">Username</Label>
-                        <Input 
-                          id="username" 
-                          name="username"
-                          value={formData.username} 
-                          onChange={handleInputChange}
-                          disabled // Username typically shouldn't be changeable
-                        />
+                <CardContent className="space-y-6">
+                    {/* Profile Avatar */}
+                    <div className="flex items-center space-x-4">
+                        <Avatar className="h-20 w-20">
+                            <AvatarFallback className="bg-gray-100 text-gray-500 text-lg">
+                                {getUserInitials(user)}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <h2 className="text-2xl font-bold">
+                                {user.first_name && user.last_name 
+                                    ? `${user.first_name} ${user.last_name}` 
+                                    : user.username
+                                } {user.is_staff && <span className="text-blue-600 font-bold">(DEV)</span>}
+                            </h2>
+                            <p className="text-muted-foreground">{user.email}</p>
+                        </div>
                     </div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="username">Username</Label>
+                            <Input 
+                              id="username" 
+                              name="username"
+                              value={formData.username} 
+                              onChange={handleInputChange}
+                              disabled // Username typically shouldn't be changeable
+                            />
+                        </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="first-name">First Name</Label>
@@ -178,6 +207,7 @@ export default function ProfilePage() {
                           onChange={handleInputChange}
                           placeholder="+1234567890"
                         />
+                    </div>
                     </div>
                 </CardContent>
                 <div className="border-t px-6 py-4">

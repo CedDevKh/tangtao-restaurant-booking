@@ -139,8 +139,7 @@ export default function Navbar({ className }: { className?: string }) {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src="https://i.pravatar.cc/150" alt="User avatar" />
-            <AvatarFallback>
+            <AvatarFallback className="bg-gray-200 text-gray-600">
               {getUserInitials(user)}
             </AvatarFallback>
           </Avatar>
@@ -235,8 +234,7 @@ export default function Navbar({ className }: { className?: string }) {
                             <div className="space-y-4">
                                 <div className="flex items-center gap-4">
                                     <Avatar>
-                                        <AvatarImage src="https://i.pravatar.cc/150" alt="User avatar" />
-                                        <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+                                        <AvatarFallback className="bg-gray-200 text-gray-600">{getUserInitials(user)}</AvatarFallback>
                                     </Avatar>
                                     <div>
                                         <p className="font-medium">{getUserDisplayName(user)}</p>

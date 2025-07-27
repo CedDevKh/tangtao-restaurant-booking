@@ -18,6 +18,8 @@ class Restaurant(models.Model):
         ('mediterranean', 'Mediterranean'),
         ('korean', 'Korean'),
         ('vietnamese', 'Vietnamese'),
+        ('khmer', 'Khmer'),
+        ('fine_dining', 'Fine Dining'),
         ('other', 'Other'),
     )
     

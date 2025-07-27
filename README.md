@@ -9,7 +9,12 @@ Tangtao is a full-stack, production-ready restaurant booking platform designed f
 - **Frontend (Next.js + TypeScript):**
   - Dynamic restaurant listing and detail pages (data fetched from backend)
   - Admin dashboard for CRUD operations on restaurants
-  - User authentication, profile management, and booking management
+  - User 6. **Mobile Navigation**: Verify bottom navigation visibility on mobile devices
+7. **PWA Installation**: Check manifest.json and service worker registration
+8. **Search Navigation**: Ensure search bar properly navigates to search page with URL parameters
+9. **Cuisine Categories**: Verify all 14 cuisine types display correctly including Khmer and Fine Dining
+10. **Google Images**: Test external image loading from Google Images domain
+11. **Booking Status Updates**: Check admin booking management functionalitythentication, profile management, and booking management
   - AI-powered restaurant recommendations and advanced search/filtering
   - Responsive, mobile-first UI with dark/light/system theme support
   - PWA features: installable, offline support, service worker, manifest
@@ -27,16 +32,20 @@ Tangtao is a full-stack, production-ready restaurant booking platform designed f
 
 - **For Users:**
   - Browse, search, and filter restaurants with real-time updates
+  - Advanced search functionality with navigation from search bar to dedicated search page
   - View detailed restaurant pages (dynamic, not static)
-  - Make and manage bookings
+  - Make and manage bookings with comprehensive booking management
   - Personalized AI recommendations
   - Mobile-optimized navigation and PWA install
+  - Support for Google Images integration with optimized image loading
 
 - **For Admins:**
-  - Add, edit, and delete restaurants via dashboard
+  - Add, edit, and delete restaurants via comprehensive dashboard
   - Set opening/closing times, image URLs, and all metadata
+  - Support for 14 cuisine types including Khmer and Fine Dining categories
   - View platform stats and analytics (extensible)
   - Manage featured/active status for restaurants
+  - Complete booking management with status updates (pending, confirmed, completed, cancelled)
 
 ### Architecture Highlights
 
@@ -60,26 +69,50 @@ A modern, full-stack restaurant booking platform built with Next.js and Django. 
 
 ### For Users
 - **Restaurant Discovery**: Browse restaurants with detailed information, photos, and ratings
-- **Advanced Filtering**: Filter by cuisine type, rating, price range, and more
+- **Advanced Search & Filtering**: 
+  - Filter by cuisine type (14 categories including Khmer and Fine Dining), rating, price range, and more
+  - Real-time search with navigation from search bar to dedicated search page
+  - URL parameter-based search for bookmarkable results
 - **AI-Powered Recommendations**: Get personalized restaurant suggestions based on preferences
+- **Enhanced Booking System**: 
+  - View and manage restaurant reservations with detailed booking information
+  - Real-time booking status updates (pending, confirmed, completed, cancelled)
+- **Google Images Integration**: Support for external images with optimized loading from Google Images
 - **Mobile-First Design**: Optimized mobile experience with bottom navigation
 - **User Authentication**: Secure registration and login system
-- **Booking Management**: View and manage restaurant reservations
 - **User Profiles**: Manage personal information and preferences
 - **Theme Support**: Light, dark, and system theme options
-- **Real-time Search**: Dynamic restaurant search and filtering
 - **PWA Ready**: Progressive Web App capabilities for mobile installation
 
 ### For Administrators
-- **Restaurant Management**: Full CRUD operations for restaurant listings
-- **Admin Dashboard**: Dedicated interface for managing restaurants
+- **Restaurant Management**: Full CRUD operations for restaurant listings with comprehensive admin dashboard
+- **Cuisine Type Management**: Support for 14 cuisine categories including Khmer and Fine Dining
+- **Booking Management**: 
+  - View all customer bookings across the platform
+  - Update booking statuses (pending → confirmed → completed, or cancelled)
+  - Comprehensive booking analytics and statistics
+- **Image Management**: Support for Google Images and external image URLs with Next.js optimization
 - **User Management**: Monitor and manage user accounts
 - **Analytics Ready**: Built with extensibility for future analytics features
+- **Restaurant Status Control**: Toggle active/featured status for restaurants
 
 ### Technical Features
 - **Modern UI/UX**: Built with Tailwind CSS and Radix UI components
 - **Type Safety**: Full TypeScript implementation
 - **API Integration**: RESTful API with Django REST Framework
+- **Advanced Search System**: 
+  - URL parameter-based search with navigation
+  - Real-time filtering and search functionality
+  - Dedicated search page with comprehensive results
+- **Enhanced Image Support**: 
+  - Next.js Image optimization for external URLs
+  - Google Images integration with proper configuration
+  - Remote image pattern support for multiple domains
+- **Comprehensive Booking System**:
+  - Real-time booking status management
+  - Admin booking oversight with update capabilities
+  - Detailed booking analytics and customer information
+- **Extended Cuisine Support**: 14 cuisine types including Khmer and Fine Dining categories
 - **Authentication**: Token-based authentication with secure session management
 - **Error Handling**: Comprehensive error handling and user feedback
 - **Loading States**: Smooth loading experiences with skeleton screens
@@ -100,15 +133,19 @@ A modern, full-stack restaurant booking platform built with Next.js and Django. 
 - **HTTP Client**: Fetch API with custom error handling
 - **PWA**: Service Worker, Web App Manifest
 - **Theme System**: Light/Dark/System theme support
+- **Image Optimization**: Next.js Image component with remote pattern support for Google Images
+- **Search System**: URL parameter-based navigation with dedicated search page
 
 ### Backend
 - **Framework**: Django 5.2.4
 - **API**: Django REST Framework 3.16.0
 - **Database**: PostgreSQL (with SQLite for development)
 - **Authentication**: Django Token Authentication
-- **CORS**: django-cors-headers
-- **Environment**: django-environ
-- **Filtering**: django-filter
+- **CORS**: django-cors-headers for frontend integration
+- **Environment**: django-environ for configuration management
+- **Filtering**: django-filter for advanced search and filtering
+- **Image Handling**: Support for external image URLs including Google Images
+- **Booking System**: Comprehensive booking management with status tracking
 
 ### Development Tools
 - **Package Manager**: npm (Frontend), pip (Backend)
@@ -200,11 +237,14 @@ npm run dev
 ### 5. Test Key Features
 
 - **Homepage**: Browse featured restaurants and search
-- **Restaurants**: Filter and browse all restaurants
+- **Advanced Search**: Use the search bar to navigate to the dedicated search page with URL parameters
+- **Restaurants**: Filter and browse all restaurants with 14 cuisine types including Khmer and Fine Dining
+- **Booking Management**: Test the comprehensive booking system with status updates
+- **Admin Dashboard**: Access admin features for restaurant and booking management
+- **Google Images**: Test external image loading and optimization
 - **Mobile Navigation**: Test bottom navigation on mobile devices
 - **Theme Switching**: Try light/dark mode in Settings
 - **AI Recommendations**: Get personalized restaurant suggestions
-- **Search**: Test real-time search functionality
 
 ## 📁 Project Structure
 
@@ -232,8 +272,8 @@ Tangtao/
 │   │   │   ├── auth/          # Authentication pages
 │   │   │   ├── admin/         # Admin dashboard
 │   │   │   ├── restaurants/   # Restaurant pages
-│   │   │   ├── search/        # Search functionality
-│   │   │   ├── bookings/      # Booking management
+│   │   │   ├── search/        # Advanced search functionality with URL parameters
+│   │   │   ├── bookings/      # Comprehensive booking management
 │   │   │   ├── recommendations/ # AI recommendations
 │   │   │   ├── settings/      # User settings & theme
 │   │   │   └── page.tsx       # Home page
@@ -249,6 +289,7 @@ Tangtao/
 │   │   ├── sw.js             # Service worker
 │   │   └── theme-init.js     # Theme initialization
 │   ├── package.json           # Node.js dependencies
+│   ├── next.config.ts         # Next.js configuration with image optimization
 │   └── tailwind.config.ts     # Tailwind configuration
 ├── start_app.bat              # Windows startup script
 ├── start_frontend.bat         # Frontend startup script
@@ -284,6 +325,9 @@ Create a `.env.local` file in `frontend/` with:
 
 ```env
 NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000
+
+# Image optimization configuration is handled in next.config.ts
+# Supports Google Images and other external domains
 ```
 
 ## 📱 Mobile & PWA Features
@@ -361,21 +405,26 @@ NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000
 ### Booking Endpoints
 
 - `GET /api/bookings/` - List user bookings
+- `GET /api/admin/bookings/` - List all bookings (admin only)
 - `POST /api/bookings/` - Create new booking
 - `GET /api/bookings/{id}/` - Get booking details
-- `PUT /api/bookings/{id}/` - Update booking
+- `PATCH /api/bookings/{id}/` - Update booking status
 - `DELETE /api/bookings/{id}/` - Cancel booking
-- `DELETE /api/admin/restaurants/{id}/` - Delete restaurant (admin only)
 
 ### Query Parameters
 
 **Restaurant Listing**:
-- `cuisine_type` - Filter by cuisine
+- `cuisine_type` - Filter by cuisine (supports 14 types including 'khmer' and 'fine_dining')
 - `price_range` - Filter by price range (1-4)
 - `rating__gte` - Filter by minimum rating
 - `is_featured` - Filter featured restaurants
 - `is_active` - Filter active restaurants
+- `search` - Search restaurants by name, cuisine, or location
 - `ordering` - Sort results (rating, -rating, created_at, -created_at)
+
+**Search Functionality**:
+- URL parameter support: `/search?q=restaurant_name&location=city`
+- Real-time filtering and navigation from search bar
 
 ## 🧪 Testing
 
@@ -405,6 +454,34 @@ npm run typecheck
 ### Development Notes
 
 ### Recent Updates (Latest)
+
+**🔍 Enhanced Search & Navigation System**:
+- Implemented comprehensive search functionality with navigation from search bar to dedicated search page
+- Added URL parameter-based search for bookmarkable results
+- Real-time search with automatic query parameter detection
+- Search across restaurant names, locations, and cuisine types
+
+**🍽️ Extended Cuisine Categories**:
+- Added Khmer cuisine type to support Cambodian restaurants
+- Added Fine Dining category for upscale restaurant experiences
+- Updated all frontend components to support 14 total cuisine categories
+- Created database migration for new cuisine types
+
+**📸 Google Images Integration**:
+- Configured Next.js Image optimization for external domains
+- Added support for Google Images (lh3.googleusercontent.com) in remote patterns
+- Enhanced image loading performance with optimized configurations
+
+**📊 Comprehensive Booking Management**:
+- Enhanced admin dashboard with complete booking oversight
+- Added booking status management (pending, confirmed, completed, cancelled)
+- Implemented detailed booking analytics with customer information
+- Real-time booking status updates with proper API integration
+
+**⚡ Performance & System Improvements**:
+- Fixed Django backend dependency issues with proper virtual environment setup
+- Enhanced database migrations for new features
+- Improved error handling and user feedback throughout the application
 
 **� Hydration & Performance Fixes**:
 - Replaced all Lucide React icons with inline SVGs to eliminate hydration errors
@@ -437,9 +514,10 @@ npm run typecheck
 
 **Restaurant Model**:
 - Comprehensive restaurant information
-- Cuisine types, pricing, capacity
-- Operating hours, ratings, featured status
-- Image upload support
+- Cuisine types (14 categories including Khmer and Fine Dining)
+- Pricing, capacity, operating hours
+- Ratings, featured status, image support
+- External image URL support including Google Images
 
 ### Security Features
 
@@ -453,14 +531,15 @@ npm run typecheck
 ### Performance Considerations
 
 - Database query optimization with proper indexing
-- Image optimization with Next.js Image component
+- Image optimization with Next.js Image component and remote pattern support
 - Lazy loading for restaurant listings and images
-- Efficient filtering and pagination
+- Efficient filtering and pagination with advanced search capabilities
 - Client-side caching with React state management
 - Hydration-safe rendering to prevent layout shifts
 - Service worker caching for offline functionality
 - Optimized bundle size with tree shaking
 - Inline SVGs for better performance and fewer requests
+- URL parameter-based navigation for better user experience and SEO
 
 ## 🐛 Troubleshooting
 

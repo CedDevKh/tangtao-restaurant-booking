@@ -12,7 +12,7 @@ type RestaurantCardProps = {
   restaurant: Restaurant;
 };
 
-const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000')).replace(/\/$/, '');
 
 type TimeslotEntry = { time: string; discount_percent: number | null; source: 'slot'|'offer'|'both'; slot_id?: number|null; offer_id?: number|null };
 

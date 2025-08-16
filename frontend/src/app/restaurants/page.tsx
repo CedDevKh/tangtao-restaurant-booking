@@ -62,7 +62,7 @@ interface Offer {
   is_available_today: boolean;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
+const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000'));
 
 const cuisines = ['italian', 'japanese', 'french', 'mexican', 'indian', 'chinese', 'american', 'thai', 'mediterranean', 'korean', 'vietnamese', 'khmer', 'fine_dining', 'other'];
 const ratings = [4.5, 4.0, 3.5, 0];

@@ -72,6 +72,7 @@ if DEBUG:
         # LAN IP (frontend dev server / backend direct access)
         "http://192.168.0.127:3000",
         "http://192.168.0.127:8000",
+    "http://192.168.0.127:9003",
     ]
 else:
     # Production origins will be set via environment variable
@@ -97,6 +98,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://192.168.0.127:3000",
     "http://192.168.0.127:8000",
+    "http://192.168.0.127:9003",
 ]
 
 

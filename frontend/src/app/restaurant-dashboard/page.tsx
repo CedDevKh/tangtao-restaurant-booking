@@ -72,7 +72,7 @@ interface Booking {
 	created_at: string;
 }
 
-const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000')).replace(/\/$/, '');
 
 type OfferTimeSlotForm = {
 	id?: number;

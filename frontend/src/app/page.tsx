@@ -52,7 +52,8 @@ interface Offer {
   is_available_today: boolean;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
+// Dynamic backend URL: use env if set, else current host with backend port 8000 (works for LAN access)
+const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000'));
 
 export default function Home() {
   const { isLoggedIn, user } = useAuth();

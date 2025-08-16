@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import TimeslotChips from '@/components/TimeslotChips';
 import SearchBar from '@/components/search-bar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -39,6 +40,26 @@ interface BackendRestaurant {
   is_featured: boolean;
   created_at: string;
   updated_at: string;
+  active_offers?: Offer[];
+  featured_offer?: Offer;
+}
+
+interface Offer {
+  id: number;
+  title: string;
+  description: string;
+  offer_type: 'percentage' | 'amount' | 'special';
+  discount_percentage?: number;
+  discount_amount?: number;
+  original_price?: number;
+  discounted_price?: number;
+  savings_amount?: number;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  is_featured: boolean;
+  is_available_today: boolean;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
@@ -369,6 +390,16 @@ export default function RestaurantsPage() {
                           <Badge className="absolute top-2 right-2 bg-background/80 text-foreground">
                             {getPriceRangeDisplay(restaurant.price_range)}
                           </Badge>
+                          {restaurant.featured_offer && (
+                            <Badge className="absolute bottom-2 left-2 bg-red-500 text-white font-bold">
+                              {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage
+                                ? `${restaurant.featured_offer.discount_percentage}% OFF`
+                                : restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount
+                                ? `$${restaurant.featured_offer.discount_amount} OFF`
+                                : 'SPECIAL OFFER'
+                              }
+                            </Badge>
+                          )}
                         </div>
                         <CardHeader className="pb-2">
                           <CardTitle className="truncate">{restaurant.name}</CardTitle>
@@ -406,6 +437,39 @@ export default function RestaurantsPage() {
                               {restaurant.description}
                             </p>
                           )}
+                          {restaurant.featured_offer && (
+                            <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-semibold text-red-800 dark:text-red-200 text-sm">
+                                    {restaurant.featured_offer.title}
+                                  </p>
+                                  <p className="text-xs text-red-600 dark:text-red-300 mt-1">
+                                    {restaurant.featured_offer.start_time} - {restaurant.featured_offer.end_time}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage && (
+                                    <div className="font-bold text-red-800 dark:text-red-200">
+                                      {restaurant.featured_offer.discount_percentage}% OFF
+                                    </div>
+                                  )}
+                                  {restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount && (
+                                    <div className="font-bold text-red-800 dark:text-red-200">
+                                      ${restaurant.featured_offer.discount_amount} OFF
+                                    </div>
+                                  )}
+                                  {restaurant.featured_offer.original_price && restaurant.featured_offer.discounted_price && (
+                                    <div className="text-xs text-red-600 dark:text-red-300">
+                                      <span className="line-through">${restaurant.featured_offer.original_price}</span>
+                                      {' → '}
+                                      <span className="font-semibold">${restaurant.featured_offer.discounted_price}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           <div className="mt-4">
                             <Link
                               href={`/restaurants/${restaurant.id}`}
@@ -413,6 +477,9 @@ export default function RestaurantsPage() {
                             >
                               View Details
                             </Link>
+                          </div>
+                          <div className="mt-3">
+                            <TimeslotChips restaurantId={restaurant.id} />
                           </div>
                         </CardContent>
                       </Card>

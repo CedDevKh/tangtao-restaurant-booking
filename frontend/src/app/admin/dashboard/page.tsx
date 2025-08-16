@@ -1,4 +1,3 @@
-
 'use client';
 import { getAllBookings, BookingResponse } from '@/lib/booking-api';
 
@@ -71,6 +70,59 @@ interface RestaurantFormData {
   is_featured: boolean;
 }
 
+interface Offer {
+  id: number;
+  restaurant: number;
+  restaurant_name: string;
+  restaurant_cuisine: string;
+  restaurant_location: string;
+  title: string;
+  description: string;
+  offer_type: 'percentage' | 'amount' | 'special';
+  discount_percentage?: number;
+  discount_amount?: number;
+  original_price?: number;
+  discounted_price?: number;
+  savings_amount?: number;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  recurring: 'none' | 'daily' | 'weekly' | 'monthly';
+  days_of_week?: string;
+  available_quantity: number;
+  max_people_per_booking: number;
+  min_advance_booking: number;
+  is_active: boolean;
+  is_featured: boolean;
+  is_available_today: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OfferFormData {
+  restaurant: number;
+  title: string;
+  description: string;
+  offer_type: 'percentage' | 'amount' | 'special';
+  discount_percentage?: number;
+  discount_amount?: number;
+  original_price?: number;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  recurring: 'none' | 'daily' | 'weekly' | 'monthly';
+  days_of_week?: string;
+  available_quantity: number;
+  max_people_per_booking: number;
+  min_advance_booking: number;
+  is_active: boolean;
+  is_featured: boolean;
+}
+
+interface OwnerCandidate { id: number; username: string; email: string }
+
 const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 const timeOptions = Array.from({ length: 48 }, (_, i) => {
@@ -111,6 +163,88 @@ export default function AdminDashboard() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Offers state
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [selectedOffers, setSelectedOffers] = useState<number[]>([]);
+  const [showCreateOfferModal, setShowCreateOfferModal] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+  // Schedule generator (Eatigo style) state
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [scheduleResult, setScheduleResult] = useState<any | null>(null);
+  const [scheduleErrors, setScheduleErrors] = useState<string | null>(null);
+  interface ScheduleForm {
+    restaurant: number; // single restaurant (ignored if selectedRestaurants not empty)
+    selectedRestaurants: number[]; // multi-target batch
+    offer_type: 'percentage' | 'amount';
+    title_template: string;
+    description: string;
+    start_date: string;
+    end_date: string;
+    days_of_week: string | undefined; // csv of 0-6
+    hours: number[]; // integers 0-23
+    base_pattern: Array<{ minute: 0 | 30; discount_percentage?: number; discount_amount?: number }>;
+    hour_overrides: Record<string, Array<{ minute: 0 | 30; discount_percentage?: number; discount_amount?: number }>>; // hour string => pattern
+    original_price?: number;
+    replace: boolean;
+  }
+  const todayISO = new Date().toISOString().split('T')[0];
+  const in7 = (() => { const d = new Date(); d.setDate(d.getDate()+7); return d.toISOString().split('T')[0]; })();
+  const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
+    restaurant: 0,
+    selectedRestaurants: [],
+    offer_type: 'percentage',
+    title_template: 'Deal {hour}:00',
+    description: 'Auto generated schedule',
+    start_date: todayISO,
+    end_date: in7,
+    days_of_week: undefined,
+    hours: [11,12,13,18,19,20],
+    base_pattern: [
+      { minute: 0, discount_percentage: 50 },
+      { minute: 30, discount_percentage: 40 }
+    ],
+    hour_overrides: {},
+    original_price: undefined,
+    replace: true,
+  });
+  const [offerSearchTerm, setOfferSearchTerm] = useState('');
+  const [filterOfferType, setFilterOfferType] = useState('');
+  const [filterOfferActive, setFilterOfferActive] = useState('');
+  const [offerFormData, setOfferFormData] = useState<OfferFormData>(() => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    return {
+      restaurant: 0,
+      title: '',
+      description: '',
+      offer_type: 'percentage',
+      discount_percentage: 20,
+      original_price: 0,
+      start_date: tomorrow.toISOString().split('T')[0],
+      end_date: nextWeek.toISOString().split('T')[0],
+      start_time: '18:00',
+      end_time: '21:00',
+      recurring: 'none',
+      available_quantity: 10,
+      max_people_per_booking: 6,
+      min_advance_booking: 1,
+      is_active: true,
+      is_featured: false,
+    };
+  });
+  const [offerFormErrors, setOfferFormErrors] = useState<Record<string, string>>({});
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+
+  const [ownerCandidates, setOwnerCandidates] = useState<OwnerCandidate[]>([]);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferRestaurant, setTransferRestaurant] = useState<Restaurant | null>(null);
+  const [selectedNewOwner, setSelectedNewOwner] = useState<number | null>(null);
 
   const cuisineTypes = [
     { value: 'italian', label: 'Italian' },
@@ -385,8 +519,8 @@ export default function AdminDashboard() {
         // Ensure bookingsData is always an array
         if (Array.isArray(bookingsData)) {
           setBookings(bookingsData);
-        } else if (bookingsData && Array.isArray(bookingsData.results)) {
-          setBookings(bookingsData.results);
+        } else if (bookingsData && Array.isArray((bookingsData as any).results)) {
+          setBookings((bookingsData as any).results);
         } else {
           console.warn('Bookings data is not in expected format:', bookingsData);
           setBookings([]);
@@ -453,6 +587,9 @@ export default function AdminDashboard() {
         const statsData = await statsRes.json();
         setStats(statsData);
       }
+
+      // Fetch offers
+      await fetchOffers();
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -587,8 +724,8 @@ export default function AdminDashboard() {
             // Ensure bookingsData is always an array
             if (Array.isArray(bookingsData)) {
               setBookings(bookingsData);
-            } else if (bookingsData && Array.isArray(bookingsData.results)) {
-              setBookings(bookingsData.results);
+            } else if (bookingsData && Array.isArray((bookingsData as any).results)) {
+              setBookings((bookingsData as any).results);
             } else {
               console.warn('Bookings data is not in expected format:', bookingsData);
               setBookings([]);
@@ -824,6 +961,263 @@ export default function AdminDashboard() {
     }
   };
 
+  // Offer management functions
+  const fetchOffers = async () => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/offers/`, {
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setOffers(Array.isArray(data) ? data : data.results || []);
+    } catch (error) {
+      console.error('Error fetching offers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch offers. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteOffer = async (offerId: number) => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/offers/${offerId}/`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Token ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      await fetchOffers();
+      toast({
+        title: "Success",
+        description: "Offer deleted successfully!",
+      });
+    } catch (error) {
+      console.error('Error deleting offer:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete offer. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleOfferActive = async (offerId: number) => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/offers/${offerId}/toggle_active/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      await fetchOffers();
+      toast({
+        title: "Success",
+        description: "Offer status updated successfully!",
+      });
+    } catch (error) {
+      console.error('Error toggling offer status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update offer status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleOfferFeatured = async (offerId: number) => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/offers/${offerId}/toggle_featured/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      await fetchOffers();
+      toast({
+        title: "Success",
+        description: "Offer featured status updated successfully!",
+      });
+    } catch (error) {
+      console.error('Error toggling offer featured status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update offer featured status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const resetOfferForm = () => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    setOfferFormData({
+      restaurant: 0,
+      title: '',
+      description: '',
+      offer_type: 'percentage',
+      discount_percentage: 20,
+      original_price: 0,
+      start_date: tomorrow.toISOString().split('T')[0], // Tomorrow as default start
+      end_date: nextWeek.toISOString().split('T')[0], // Next week as default end
+      start_time: '18:00', // 6 PM
+      end_time: '21:00', // 9 PM
+      recurring: 'none',
+      available_quantity: 10,
+      max_people_per_booking: 6,
+      min_advance_booking: 1,
+      is_active: true,
+      is_featured: false,
+    });
+    setOfferFormErrors({});
+  };
+
+  const handleCreateOfferClick = () => {
+    resetOfferForm();
+    setEditingOffer(null);
+    setShowCreateOfferModal(true);
+  };
+
+  const handleEditOfferClick = (offer: Offer) => {
+    setOfferFormData({
+      restaurant: offer.restaurant,
+      title: offer.title,
+      description: offer.description,
+      offer_type: offer.offer_type,
+      discount_percentage: offer.discount_percentage || 0,
+      discount_amount: offer.discount_amount || 0,
+      original_price: offer.original_price || 0,
+      start_date: offer.start_date,
+      end_date: offer.end_date,
+      start_time: offer.start_time,
+      end_time: offer.end_time,
+      recurring: offer.recurring,
+      days_of_week: offer.days_of_week,
+      available_quantity: offer.available_quantity,
+      max_people_per_booking: offer.max_people_per_booking,
+      min_advance_booking: offer.min_advance_booking,
+      is_active: offer.is_active,
+      is_featured: offer.is_featured,
+    });
+    setOfferFormErrors({});
+    setEditingOffer(offer);
+    setShowCreateOfferModal(true);
+  };
+
+  const handleOfferFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingOffer(true);
+    setOfferFormErrors({});
+
+    try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const url = editingOffer 
+        ? `${API_URL}/api/offers/${editingOffer.id}/`
+        : `${API_URL}/api/offers/`;
+      
+      const method = editingOffer ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(offerFormData),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 400 && responseData) {
+          setOfferFormErrors(responseData);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      await fetchOffers();
+      setShowCreateOfferModal(false);
+      resetOfferForm();
+      toast({
+        title: "Success",
+        description: `Offer ${editingOffer ? 'updated' : 'created'} successfully!`,
+      });
+    } catch (error) {
+      console.error('Error submitting offer form:', error);
+      toast({
+        title: "Error",
+        description: `Failed to ${editingOffer ? 'update' : 'create'} offer. Please try again.`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const clearOfferFormError = (field: string) => {
+    if (offerFormErrors[field]) {
+      setOfferFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+  };
+
+  const filteredOffers = offers.filter(offer => {
+    const matchesSearch = offer.title.toLowerCase().includes(offerSearchTerm.toLowerCase()) ||
+                         offer.description.toLowerCase().includes(offerSearchTerm.toLowerCase()) ||
+                         offer.restaurant_name.toLowerCase().includes(offerSearchTerm.toLowerCase());
+    const matchesType = !filterOfferType || filterOfferType === 'all' || offer.offer_type === filterOfferType;
+    const matchesActive = !filterOfferActive || filterOfferActive === 'all' || 
+                         (filterOfferActive === 'active' && offer.is_active) ||
+                         (filterOfferActive === 'inactive' && !offer.is_active);
+    
+    return matchesSearch && matchesType && matchesActive;
+  });
+
   const filteredRestaurants = restaurants.filter(restaurant => {
     const matchesSearch = restaurant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          restaurant.cuisine_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -835,6 +1229,49 @@ export default function AdminDashboard() {
     
     return matchesSearch && matchesCuisine && matchesActive;
   });
+
+  const fetchOwnerCandidates = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+      const res = await fetch(`${API_URL}/api/admin/restaurants/owner_candidates/`, { headers: { 'Authorization': `Token ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setOwnerCandidates(data);
+      }
+    } catch (e) { console.error('Error fetching owner candidates', e); }
+  };
+
+  const openTransferModal = (restaurant: Restaurant) => {
+    setTransferRestaurant(restaurant);
+    setSelectedNewOwner(null);
+    setShowTransferModal(true);
+    fetchOwnerCandidates();
+  };
+
+  const submitOwnershipTransfer = async () => {
+    if (!transferRestaurant || !selectedNewOwner) return;
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`${API_URL}/api/admin/restaurants/${transferRestaurant.id}/transfer_owner/`, {
+        method: 'POST',
+        headers: { 'Authorization': `Token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_owner_id: selectedNewOwner })
+      });
+      if (res.ok) {
+        toast({ title: 'Ownership Transferred', description: `Restaurant now owned by selected user.` });
+        setShowTransferModal(false);
+        setTransferRestaurant(null);
+        fetchData();
+      } else {
+        const err = await res.json().catch(()=>({error:'Unknown error'}));
+        toast({ title: 'Transfer Failed', description: err.error || 'Could not transfer ownership.', variant: 'destructive' });
+      }
+    } catch (e) {
+      console.error('Transfer error', e);
+      toast({ title: 'Error', description: 'Unexpected error transferring ownership.', variant: 'destructive' });
+    }
+  };
 
   if (loading) {
     return (
@@ -914,6 +1351,7 @@ export default function AdminDashboard() {
       <Tabs defaultValue="restaurants" className="space-y-4">
         <TabsList>
           <TabsTrigger value="restaurants">Restaurants</TabsTrigger>
+          <TabsTrigger value="offers">Offers</TabsTrigger>
           <TabsTrigger value="bookings">Bookings</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
@@ -1024,6 +1462,13 @@ export default function AdminDashboard() {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openTransferModal(restaurant)}
+                        >
+                          Transfer Owner
+                        </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm">
@@ -1049,6 +1494,253 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="offers" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Search</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search offers, descriptions, restaurants..."
+                      value={offerSearchTerm}
+                      onChange={(e) => setOfferSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Offer Type</Label>
+                  <Select value={filterOfferType} onValueChange={setFilterOfferType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="percentage">Percentage Discount</SelectItem>
+                      <SelectItem value="amount">Fixed Amount</SelectItem>
+                      <SelectItem value="special">Special Offer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={filterOfferActive} onValueChange={setFilterOfferActive}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setOfferSearchTerm('');
+                    setFilterOfferType('');
+                    setFilterOfferActive('');
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Filters
+                </Button>
+                <Button onClick={handleCreateOfferClick}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Offer
+                </Button>
+                <Button variant="secondary" onClick={() => { setScheduleResult(null); setScheduleErrors(null); setShowScheduleModal(true); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Generate Schedule
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Offers List */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Offers ({filteredOffers.length})</CardTitle>
+              <CardDescription>
+                Manage discount offers for restaurants
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {filteredOffers.map((offer) => (
+                  <div key={offer.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold">{offer.title}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {offer.restaurant_name} • {offer.restaurant_cuisine}
+                        </p>
+                        <p className="text-sm">{offer.description}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={offer.is_active ? "default" : "secondary"}>
+                          {offer.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                        {offer.is_featured && (
+                          <Badge variant="outline">
+                            <Star className="h-3 w-3 mr-1 fill-current" />
+                            Featured
+                          </Badge>
+                        )}
+                        {offer.is_available_today && (
+                          <Badge variant="outline" className="bg-green-50 text-green-700">
+                            Available Today
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium">Type:</span>{' '}
+                        {offer.offer_type === 'percentage' ? 'Percentage' : 
+                         offer.offer_type === 'amount' ? 'Fixed Amount' : 'Special'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Discount:</span>{' '}
+                        {offer.offer_type === 'percentage' && offer.discount_percentage ? `${offer.discount_percentage}%` :
+                         offer.offer_type === 'amount' && offer.discount_amount ? `$${offer.discount_amount}` :
+                         'Custom'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Duration:</span>{' '}
+                        {offer.start_date} to {offer.end_date}
+                      </div>
+                      <div>
+                        <span className="font-medium">Time:</span>{' '}
+                        {offer.start_time} - {offer.end_time}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium">Available:</span>{' '}
+                        {offer.available_quantity} bookings
+                      </div>
+                      <div>
+                        <span className="font-medium">Max People:</span>{' '}
+                        {offer.max_people_per_booking}
+                      </div>
+                      <div>
+                        <span className="font-medium">Advance:</span>{' '}
+                        {offer.min_advance_booking}h minimum
+                      </div>
+                      <div>
+                        <span className="font-medium">Recurring:</span>{' '}
+                        {offer.recurring === 'none' ? 'One-time' : offer.recurring}
+                      </div>
+                    </div>
+
+                    {offer.original_price && (
+                      <div className="flex items-center space-x-4 text-sm">
+                        <div>
+                          <span className="font-medium">Original Price:</span> ${offer.original_price}
+                        </div>
+                        {offer.discounted_price && (
+                          <div>
+                            <span className="font-medium">Discounted Price:</span> ${offer.discounted_price}
+                          </div>
+                        )}
+                        {offer.savings_amount && (
+                          <div className="text-green-600">
+                            <span className="font-medium">You Save:</span> ${offer.savings_amount}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <div className="text-xs text-muted-foreground">
+                        Created: {new Date(offer.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleOfferActive(offer.id)}
+                        >
+                          {offer.is_active ? (
+                            <>
+                              <EyeOff className="h-4 w-4 mr-1" />
+                              Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Activate
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleOfferFeatured(offer.id)}
+                        >
+                          <Star 
+                            className={`h-4 w-4 mr-1 ${offer.is_featured ? 'fill-current' : ''}`} 
+                          />
+                          {offer.is_featured ? 'Unfeature' : 'Feature'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditOfferClick(offer)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Offer</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{offer.title}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteOffer(offer.id)}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {filteredOffers.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {offers.length === 0 ? 'No offers found. Create your first offer!' : 'No offers match your filters.'}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1347,6 +2039,820 @@ export default function AdminDashboard() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create/Edit Offer Modal */}
+      <Dialog open={showCreateOfferModal} onOpenChange={setShowCreateOfferModal}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <form onSubmit={handleOfferFormSubmit}>
+            <DialogHeader>
+              <DialogTitle>
+                {editingOffer ? 'Edit Offer' : 'Create New Offer'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingOffer ? 'Update the offer details below.' : 'Fill in the details to create a new discount offer.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              {/* Restaurant Selection */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="restaurant">Restaurant *</Label>
+                  <Select 
+                    value={offerFormData.restaurant.toString()} 
+                    onValueChange={(value) => {
+                      setOfferFormData(prev => ({ ...prev, restaurant: parseInt(value) }));
+                      clearOfferFormError('restaurant');
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select restaurant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {restaurants.map((restaurant) => (
+                        <SelectItem key={restaurant.id} value={restaurant.id.toString()}>
+                          {restaurant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {offerFormErrors.restaurant && (
+                    <p className="text-sm text-red-500">{offerFormErrors.restaurant}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="offer_type">Offer Type *</Label>
+                  <Select 
+                    value={offerFormData.offer_type} 
+                    onValueChange={(value: 'percentage' | 'amount' | 'special') => {
+                      setOfferFormData(prev => ({ ...prev, offer_type: value }));
+                      clearOfferFormError('offer_type');
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="percentage">Percentage Discount</SelectItem>
+                      <SelectItem value="amount">Fixed Amount Discount</SelectItem>
+                      <SelectItem value="special">Special Offer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {offerFormErrors.offer_type && (
+                    <p className="text-sm text-red-500">{offerFormErrors.offer_type}</p>
+                  )}
+                </div>
+                           </div>
+
+              {/* Title and Description */}
+              <div className="space-y-2">
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  placeholder="Happy Hour Special"
+                  value={offerFormData.title}
+                  onChange={(e) => {
+                    setOfferFormData(prev => ({ ...prev, title: e.target.value }));
+                    clearOfferFormError('title');
+                  }}
+                />
+                {offerFormErrors.title && (
+                  <p className="text-sm text-red-500">{offerFormErrors.title}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description *</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Enjoy 20% off your meal during happy hour..."
+                  value={offerFormData.description}
+                  onChange={(e) => {
+                    setOfferFormData(prev => ({ ...prev, description: e.target.value }));
+                    clearOfferFormError('description');
+                  }}
+                />
+                {offerFormErrors.description && (
+                  <p className="text-sm text-red-500">{offerFormErrors.description}</p>
+                )}
+              </div>
+
+              {/* Discount Details */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="original_price">Original Price ($)</Label>
+                  <Input
+                    id="original_price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="50.00"
+                    value={offerFormData.original_price || ''}
+                    onChange={(e) => {
+                      setOfferFormData(prev => ({ ...prev, original_price: parseFloat(e.target.value) || undefined }));
+                      clearOfferFormError('original_price');
+                    }}
+                  />
+                  {offerFormErrors.original_price && (
+                    <p className="text-sm text-red-500">{offerFormErrors.original_price}</p>
+                  )}
+                </div>
+
+                {offerFormData.offer_type === 'percentage' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="discount_percentage">Discount Percentage (%) *</Label>
+                    <Input
+                      id="discount_percentage"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      placeholder="20"
+                      value={offerFormData.discount_percentage || ''}
+                      onChange={(e) => {
+                        setOfferFormData(prev => ({ ...prev, discount_percentage: parseFloat(e.target.value) || undefined }));
+                        clearOfferFormError('discount_percentage');
+                      }}
+                    />
+                    {offerFormErrors.discount_percentage && (
+                      <p className="text-sm text-red-500">{offerFormErrors.discount_percentage}</p>
+                    )}
+                  </div>
+                )}
+
+                {offerFormData.offer_type === 'amount' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="discount_amount">Discount Amount ($) *</Label>
+                    <Input
+                      id="discount_amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="10.00"
+                      value={offerFormData.discount_amount || ''}
+                      onChange={(e) => {
+                        setOfferFormData(prev => ({ ...prev, discount_amount: parseFloat(e.target.value) || undefined }));
+                        clearOfferFormError('discount_amount');
+                      }}
+                    />
+                    {offerFormErrors.discount_amount && (
+                      <p className="text-sm text-red-500">{offerFormErrors.discount_amount}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Date and Time */}
+              <div className="space-y-4">
+                {/* Quick Date Presets */}
+                <div className="space-y-2">
+                  <Label>Quick Date Presets</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const today = new Date();
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        const dayAfter = new Date(tomorrow);
+                        dayAfter.setDate(dayAfter.getDate() + 1);
+                        
+                        setOfferFormData(prev => ({
+                          ...prev,
+                          start_date: tomorrow.toISOString().split('T')[0],
+                          end_date: dayAfter.toISOString().split('T')[0]
+                        }));
+                      }}
+                    >
+                      Tomorrow Only
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const today = new Date();
+                        const nextWeek = new Date(today);
+                        nextWeek.setDate(nextWeek.getDate() + 7);
+                        
+                        setOfferFormData(prev => ({
+                          ...prev,
+                          start_date: today.toISOString().split('T')[0],
+                          end_date: nextWeek.toISOString().split('T')[0]
+                        }));
+                      }}
+                    >
+                      Next 7 Days
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const today = new Date();
+                        const nextMonth = new Date(today);
+                        nextMonth.setMonth(nextMonth.getMonth() + 1);
+                        
+                        setOfferFormData(prev => ({
+                          ...prev,
+                          start_date: today.toISOString().split('T')[0],
+                          end_date: nextMonth.toISOString().split('T')[0]
+                        }));
+                      }}
+                    >
+                      Next Month
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const today = new Date();
+                        // Next Friday
+                        const nextFriday = new Date(today);
+                        const daysUntilFriday = (5 - today.getDay() + 7) % 7 || 7;
+                        nextFriday.setDate(today.getDate() + daysUntilFriday);
+                        // Next Sunday
+                        const nextSunday = new Date(nextFriday);
+                        nextSunday.setDate(nextFriday.getDate() + 2);
+                        
+                        setOfferFormData(prev => ({
+                          ...prev,
+                          start_date: nextFriday.toISOString().split('T')[0],
+                          end_date: nextSunday.toISOString().split('T')[0],
+                          days_of_week: '4,5,6' // Friday, Saturday, Sunday
+                        }));
+                      }}
+                    >
+                      Weekend Special
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="start_date">Start Date *</Label>
+                    <Input
+                      id="start_date"
+                      type="date"
+                      value={offerFormData.start_date}
+                      min={new Date().toISOString().split('T')[0]} // Today's date as minimum
+                      onChange={(e) => {
+                        setOfferFormData(prev => ({ ...prev, start_date: e.target.value }));
+                        clearOfferFormError('start_date');
+                      }}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Select the start date for this offer
+                    </p>
+                    {offerFormErrors.start_date && (
+                      <p className="text-sm text-red-500">{offerFormErrors.start_date}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="end_date">End Date *</Label>
+                    <Input
+                      id="end_date"
+                      type="date"
+                      value={offerFormData.end_date}
+                      min={offerFormData.start_date || new Date().toISOString().split('T')[0]} // Start date as minimum
+                      onChange={(e) => {
+                        setOfferFormData(prev => ({ ...prev, end_date: e.target.value }));
+                        clearOfferFormError('end_date');
+                      }}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Select the end date for this offer
+                    </p>
+                    {offerFormErrors.end_date && (
+                      <p className="text-sm text-red-500">{offerFormErrors.end_date}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start_time">Start Time *</Label>
+                  <Select 
+                    value={offerFormData.start_time} 
+                    onValueChange={(value) => {
+                      setOfferFormData(prev => ({ ...prev, start_time: value }));
+                      clearOfferFormError('start_time');
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select start time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeOptions.map(time => {
+                        const [hour, minute] = time.split(':');
+                        const hour24 = parseInt(hour);
+                        const period = hour24 >= 12 ? 'PM' : 'AM';
+                        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+                        const displayTime = `${hour12}:${minute} ${period} (${time})`;
+                        
+                        return (
+                          <SelectItem key={time} value={time}>
+                            {displayTime}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Daily start time for the offer (e.g., 6:00 PM for dinner)
+                  </p>
+                  {offerFormErrors.start_time && (
+                    <p className="text-sm text-red-500">{offerFormErrors.start_time}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="end_time">End Time *</Label>
+                  <Select 
+                    value={offerFormData.end_time} 
+                    onValueChange={(value) => {
+                      setOfferFormData(prev => ({ ...prev, end_time: value }));
+                      clearOfferFormError('end_time');
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select end time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeOptions.map(time => {
+                        const [hour, minute] = time.split(':');
+                        const hour24 = parseInt(hour);
+                        const period = hour24 >= 12 ? 'PM' : 'AM';
+                        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+                        const displayTime = `${hour12}:${minute} ${period} (${time})`;
+                        
+                        return (
+                          <SelectItem key={time} value={time}>
+                            {displayTime}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Daily end time for the offer (e.g., 9:00 PM)
+                  </p>
+                  {offerFormErrors.end_time && (
+                    <p className="text-sm text-red-500">{offerFormErrors.end_time}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Recurring and Days */}
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="recurring">Recurring</Label>
+                  <Select 
+                    value={offerFormData.recurring} 
+                    onValueChange={(value: 'none' | 'daily' | 'weekly' | 'monthly') => {
+                      setOfferFormData(prev => ({ ...prev, recurring: value }));
+                      clearOfferFormError('recurring');
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">One-time offer</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Days of Week (optional)</Label>
+                  <div className="grid grid-cols-7 gap-2">
+                    {[
+                      { value: '0', label: 'Mon' },
+                      { value: '1', label: 'Tue' },
+                      { value: '2', label: 'Wed' },
+                      { value: '3', label: 'Thu' },
+                      { value: '4', label: 'Fri' },
+                      { value: '5', label: 'Sat' },
+                      { value: '6', label: 'Sun' },
+                    ].map(day => {
+                      const isSelected = offerFormData.days_of_week?.split(',').includes(day.value) || false;
+                      
+                      return (
+                        <Button
+                          key={day.value}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className="h-10"
+                          onClick={() => {
+                            const currentDays = offerFormData.days_of_week ? offerFormData.days_of_week.split(',') : [];
+                            let newDays;
+                            
+                            if (isSelected) {
+                              newDays = currentDays.filter(d => d !== day.value);
+                            } else {
+                              newDays = [...currentDays, day.value].sort();
+                            }
+                            
+                            setOfferFormData(prev => ({ 
+                              ...prev, 
+                              days_of_week: newDays.length > 0 ? newDays.join(',') : undefined 
+                            }));
+                            clearOfferFormError('days_of_week');
+                          }}
+                        >
+                          {day.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Select which days of the week this offer is available. Leave empty for all days.
+                  </p>
+                  {offerFormErrors.days_of_week && (
+                    <p className="text-sm text-red-500">{offerFormErrors.days_of_week}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Booking Settings */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="available_quantity">Available Quantity *</Label>
+                  <Input
+                    id="available_quantity"
+                    type="number"
+                    min="1"
+                    placeholder="10"
+                    value={offerFormData.available_quantity}
+                    onChange={(e) => {
+                      setOfferFormData(prev => ({ ...prev, available_quantity: parseInt(e.target.value) || 1 }));
+                      clearOfferFormError('available_quantity');
+                    }}
+                  />
+                  {offerFormErrors.available_quantity && (
+                    <p className="text-sm text-red-500">{offerFormErrors.available_quantity}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="max_people_per_booking">Max People *</Label>
+                  <Input
+                    id="max_people_per_booking"
+                    type="number"
+                    min="1"
+                    placeholder="6"
+                    value={offerFormData.max_people_per_booking}
+                    onChange={(e) => {
+                      setOfferFormData(prev => ({ ...prev, max_people_per_booking: parseInt(e.target.value) || 1 }));
+                      clearOfferFormError('max_people_per_booking');
+                    }}
+                  />
+                  {offerFormErrors.max_people_per_booking && (
+                    <p className="text-sm text-red-500">{offerFormErrors.max_people_per_booking}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="min_advance_booking">Min Advance (hours) *</Label>
+                  <Input
+                    id="min_advance_booking"
+                    type="number"
+                    min="0"
+                    placeholder="1"
+                    value={offerFormData.min_advance_booking}
+                    onChange={(e) => {
+                      setOfferFormData(prev => ({ ...prev, min_advance_booking: parseInt(e.target.value) || 0 }));
+                      clearOfferFormError('min_advance_booking');
+                    }}
+                  />
+                  {offerFormErrors.min_advance_booking && (
+                    <p className="text-sm text-red-500">{offerFormErrors.min_advance_booking}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Toggles */}
+              <div className="flex items-center space-x-8">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_active"
+                    checked={offerFormData.is_active}
+                    onCheckedChange={(checked) => setOfferFormData(prev => ({ ...prev, is_active: checked }))}
+                  />
+                  <Label htmlFor="is_active">Active</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_featured"
+                    checked={offerFormData.is_featured}
+                    onCheckedChange={(checked) => setOfferFormData(prev => ({ ...prev, is_featured: checked }))}
+                  />
+                  <Label htmlFor="is_featured">Featured</Label>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreateOfferModal(false)}
+                disabled={isSubmittingOffer}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmittingOffer}>
+                {isSubmittingOffer ? (
+                  editingOffer ? 'Updating...' : 'Creating...'
+                ) : (
+                  editingOffer ? 'Update Offer' : 'Create Offer'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Schedule (Eatigo style) Modal */}
+      <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Generate Offer Schedule</DialogTitle>
+            <DialogDescription>Create multiple hourly offers each with two 30-min discounts.</DialogDescription>
+          </DialogHeader>
+          {/* Basic form */}
+          {scheduleErrors && (
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-2 rounded mb-2">{scheduleErrors}</div>
+          )}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Restaurant *</Label>
+                <Select value={scheduleForm.restaurant ? String(scheduleForm.restaurant) : ''} onValueChange={(v)=> setScheduleForm(f=>({...f, restaurant: parseInt(v)}))}>
+                  <SelectTrigger><SelectValue placeholder="Select restaurant" /></SelectTrigger>
+                  <SelectContent>
+                    {restaurants.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <div className="pt-2 space-y-1">
+                  <Label className="text-xs">Or select multiple:</Label>
+                  <div className="max-h-32 overflow-y-auto border rounded p-2 grid grid-cols-2 gap-2 text-xs">
+                    {restaurants.map(r => {
+                      const checked = scheduleForm.selectedRestaurants.includes(r.id);
+                      return (
+                        <button key={r.id} type="button" onClick={()=> setScheduleForm(f=> ({...f, selectedRestaurants: checked? f.selectedRestaurants.filter(id=> id!==r.id): [...f.selectedRestaurants, r.id]}))} className={`border rounded px-2 py-1 text-left ${checked? 'bg-primary text-primary-foreground':'bg-muted/40'}`}>{r.name}</button>
+                      );
+                    })}
+                  </div>
+                  {scheduleForm.selectedRestaurants.length>0 && (
+                    <p className="text-xs text-muted-foreground">Will generate for {scheduleForm.selectedRestaurants.length} restaurants (single select above ignored).</p>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Offer Type</Label>
+                <Select value={scheduleForm.offer_type} onValueChange={(v: any)=> setScheduleForm(f=>({...f, offer_type: v, base_pattern: f.base_pattern.map(p=>({ ...p, discount_amount: undefined, discount_percentage: p.minute===0? (v==='percentage'?50:undefined): (v==='percentage'?40:undefined) })), hour_overrides: {} }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage</SelectItem>
+                    <SelectItem value="amount">Amount</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Original Price (if using amount)</Label>
+                <Input type="number" min={0} step="0.01" value={scheduleForm.original_price ?? ''} onChange={(e)=> setScheduleForm(f=>({...f, original_price: e.target.value? parseFloat(e.target.value): undefined}))} />
+                <p className="text-xs text-muted-foreground">Needed to compute % display if amount discounts.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Title Template</Label>
+                <Input value={scheduleForm.title_template} onChange={(e)=> setScheduleForm(f=>({...f, title_template: e.target.value}))} />
+                <p className="text-xs text-muted-foreground">Use {'{hour}'} placeholder (24h). Example template: Deal {'{hour}'}:00</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={scheduleForm.description} onChange={(e)=> setScheduleForm(f=>({...f, description: e.target.value}))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input type="date" value={scheduleForm.start_date} onChange={(e)=> setScheduleForm(f=>({...f, start_date: e.target.value}))} />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input type="date" value={scheduleForm.end_date} min={scheduleForm.start_date} onChange={(e)=> setScheduleForm(f=>({...f, end_date: e.target.value}))} />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Days of Week</Label>
+                <div className="flex flex-wrap gap-2">
+                  {[{v:'0',l:'Mon'},{v:'1',l:'Tue'},{v:'2',l:'Wed'},{v:'3',l:'Thu'},{v:'4',l:'Fri'},{v:'5',l:'Sat'},{v:'6',l:'Sun'}].map(d=>{
+                    const selected = scheduleForm.days_of_week?.split(',').includes(d.v) || false;
+                    return <Button key={d.v} type="button" size="sm" variant={selected? 'default':'outline'} onClick={()=> setScheduleForm(f=>{ const cur = f.days_of_week? f.days_of_week.split(','):[]; const next = selected? cur.filter(x=>x!==d.v): [...cur,d.v]; return {...f, days_of_week: next.length? next.sort().join(','): undefined}; })}>{d.l}</Button>;
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">Leave empty for all days.</p>
+              </div>
+            </div>
+            {/* Hour selection */}
+            <div className="space-y-2">
+              <Label>Hours</Label>
+              <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
+                {Array.from({length:24},(_,h)=>h).map(h=>{
+                  const sel = scheduleForm.hours.includes(h);
+                  return <Button key={h} type="button" size="sm" variant={sel? 'default':'outline'} className="px-2" onClick={()=> setScheduleForm(f=> ({...f, hours: sel? f.hours.filter(x=>x!==h): [...f.hours,h].sort((a,b)=>a-b)}))}>{h.toString().padStart(2,'0')}</Button>;
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">Select one or more hours (24h). Each generates a one-hour offer.</p>
+            </div>
+            {/* Base pattern */}
+            <div className="space-y-3">
+              <Label>Base 30-min Discount Pattern</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                {scheduleForm.base_pattern.map((p,idx)=> (
+                  <div key={p.minute} className="space-y-1">
+                    <Label>{p.minute === 0? 'HH:00 - HH:30':'HH:30 - HH+1:00'}</Label>
+                    <Input type="number" min={0} step="0.01" placeholder={scheduleForm.offer_type==='percentage'? 'Percent':'Amount'} value={scheduleForm.offer_type==='percentage'? (p.discount_percentage ?? ''): (p.discount_amount ?? '')} onChange={(e)=> {
+                      const val = e.target.value ? parseFloat(e.target.value): undefined;
+                      setScheduleForm(f=> ({...f, base_pattern: f.base_pattern.map(bp=> bp.minute===p.minute? ({...bp, discount_percentage: f.offer_type==='percentage'? val: undefined, discount_amount: f.offer_type==='amount'? val: undefined }): bp)}));
+                    }} />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Applied to every selected hour unless overridden below.</p>
+            </div>
+            {/* Hour overrides */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Per-Hour Overrides</Label>
+                <Button type="button" size="sm" variant="outline" onClick={()=> setScheduleForm(f=>({...f, hour_overrides:{}}))}>Clear Overrides</Button>
+              </div>
+              <div className="space-y-2">
+                {scheduleForm.hours.map(h=> {
+                  const key = String(h);
+                  const pattern = scheduleForm.hour_overrides[key];
+                  return (
+                    <div key={key} className="border rounded p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-sm">Hour {key.padStart(2,'0')}:00</div>
+                        <div className="space-x-2">
+                          <Button type="button" size="sm" variant="outline" onClick={()=> setScheduleForm(f=> ({...f, hour_overrides: {...f.hour_overrides, [key]: f.base_pattern.map(p=> ({...p})) }}))}>Copy Base</Button>
+                          {pattern && <Button type="button" size="sm" variant="ghost" onClick={()=> setScheduleForm(f=> { const ho = {...f.hour_overrides}; delete ho[key]; return {...f, hour_overrides: ho}; })}>Remove</Button>}
+                        </div>
+                      </div>
+                      {pattern ? (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {pattern.map(p=> (
+                            <div key={p.minute} className="space-y-1">
+                              <Label className="text-xs">{p.minute===0? '00-30':'30-60'} ({scheduleForm.offer_type==='percentage'? '%':'$'})</Label>
+                              <Input type="number" min={0} step="0.01" value={scheduleForm.offer_type==='percentage'? (p.discount_percentage ?? ''): (p.discount_amount ?? '')} onChange={(e)=> {
+                                const val = e.target.value? parseFloat(e.target.value): undefined;
+                                setScheduleForm(f=> ({...f, hour_overrides: {...f.hour_overrides, [key]: f.hour_overrides[key].map(ep=> ep.minute===p.minute? ({...ep, discount_percentage: f.offer_type==='percentage'? val: undefined, discount_amount: f.offer_type==='amount'? val: undefined }): ep ) }}));
+                              }} />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No override. Using base pattern.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch id="replace" checked={scheduleForm.replace} onCheckedChange={(c)=> setScheduleForm(f=>({...f, replace: c}))} />
+              <Label htmlFor="replace">Replace existing offers for selected hours in range</Label>
+            </div>
+            <div className="text-xs text-muted-foreground">Existing one-hour offers starting at a selected hour and matching date range will be deleted when Replace is on.</div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button type="button" variant="outline" onClick={()=> setShowScheduleModal(false)} disabled={scheduleSubmitting}>Cancel</Button>
+              <Button type="button" disabled={scheduleSubmitting} onClick={async ()=> {
+                setScheduleErrors(null); setScheduleResult(null);
+                // Basic validation
+                if(!scheduleForm.restaurant && scheduleForm.selectedRestaurants.length===0){ setScheduleErrors('Select at least one restaurant'); return; }
+                if(!scheduleForm.hours.length){ setScheduleErrors('Select at least one hour'); return; }
+                if(!(scheduleForm.base_pattern.length || Object.keys(scheduleForm.hour_overrides).length)){ setScheduleErrors('Provide a base pattern or at least one hour override'); return; }
+                setScheduleSubmitting(true);
+                try {
+                  const token = getAuthToken();
+                  const targetRestaurants = scheduleForm.selectedRestaurants.length? scheduleForm.selectedRestaurants: [scheduleForm.restaurant];
+                  const aggregate = { created_total:0, deleted_total:0, perRestaurant: [] as any[] };
+                  for(const rid of targetRestaurants){
+                    const payload:any = {
+                      restaurant: rid,
+                      offer_type: scheduleForm.offer_type,
+                      title_template: scheduleForm.title_template,
+                      description: scheduleForm.description,
+                      start_date: scheduleForm.start_date,
+                      end_date: scheduleForm.end_date,
+                      hours: scheduleForm.hours,
+                      slots_pattern: scheduleForm.base_pattern.map(p=> ({ minute: p.minute, discount_percentage: p.discount_percentage, discount_amount: p.discount_amount })).filter(p=> (p.discount_percentage!=null || p.discount_amount!=null)),
+                      hour_specific: Object.fromEntries(Object.entries(scheduleForm.hour_overrides).map(([h,pat])=> [h, pat.map(p=> ({ minute: p.minute, discount_percentage: p.discount_percentage, discount_amount: p.discount_amount })) ])),
+                      replace: scheduleForm.replace,
+                    };
+                    if(scheduleForm.days_of_week) payload.days_of_week = scheduleForm.days_of_week;
+                    if(scheduleForm.original_price!=null) payload.original_price = scheduleForm.original_price;
+                    let res: Response | null = null; let data: any = null;
+                    try {
+                      res = await fetch(`${API_URL}/api/offers/generate_schedule/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type':'application/json', ...(token? { 'Authorization': `Token ${token}`}: {}) },
+                        body: JSON.stringify(payload)
+                      });
+                      const ct = res.headers.get('content-type') || '';
+                      if(ct.includes('application/json')) {
+                        data = await res.json();
+                      } else {
+                        const text = await res.text();
+                        setScheduleErrors(`Non-JSON response (status ${res.status}). Snippet: ${text.slice(0,80)}`);
+                        continue;
+                      }
+                    } catch(fetchErr:any){
+                      setScheduleErrors(fetchErr.message || 'Network error');
+                      continue;
+                    }
+                    if(!res.ok){ setScheduleErrors(data?.error || `Failed on restaurant ${rid} (status ${res.status})`); continue; }
+                    aggregate.created_total += data.created_count || 0;
+                    aggregate.deleted_total += data.deleted_replaced || 0;
+                    aggregate.perRestaurant.push({ restaurant: rid, ...data });
+                  }
+                  setScheduleResult(aggregate);
+                  toast({ title: 'Schedule Generated', description: `${aggregate.created_total} offers created total.` });
+                  fetchOffers();
+                } catch(err:any){ setScheduleErrors(err.message || 'Error'); }
+                finally { setScheduleSubmitting(false); }
+              }}>{scheduleSubmitting? 'Generating...':'Generate'}</Button>
+            </div>
+            {scheduleResult && (
+              <div className="mt-4 border rounded p-3 bg-muted/40 text-sm space-y-2">
+                {'perRestaurant' in scheduleResult ? (
+                  <>
+                    <div><span className="font-medium">Total Created:</span> {scheduleResult.created_total}</div>
+                    <div><span className="font-medium">Total Deleted (replaced):</span> {scheduleResult.deleted_total}</div>
+                    <div className="space-y-1">
+                      {scheduleResult.perRestaurant.map((r:any)=> (
+                        <div key={r.restaurant} className="border rounded px-2 py-1">
+                          <div className="font-medium">Restaurant {r.restaurant}</div>
+                          <div>Created: {r.created_count} | Deleted: {r.deleted_replaced} {r.skipped_existing?.length? `| Skipped hours: ${r.skipped_existing.join(',')}`: ''}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="font-medium">Created:</span> {scheduleResult.created_count}</div>
+                    {scheduleResult.deleted_replaced ? <div><span className="font-medium">Deleted (replaced):</span> {scheduleResult.deleted_replaced}</div>: null}
+                    {scheduleResult.skipped_existing?.length ? <div><span className="font-medium">Skipped hours:</span> {scheduleResult.skipped_existing.join(', ')}</div>: null}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transfer Ownership Modal */}
+      <Dialog open={showTransferModal} onOpenChange={setShowTransferModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer Ownership</DialogTitle>
+            <DialogDescription>
+              {transferRestaurant ? `Select a new owner for ${transferRestaurant.name}` : 'Select a new owner'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label htmlFor="newOwner">New Owner</Label>
+            <Select value={selectedNewOwner ? String(selectedNewOwner) : undefined} onValueChange={(v)=> setSelectedNewOwner(Number(v))}>
+              <SelectTrigger><SelectValue placeholder="Select owner" /></SelectTrigger>
+              <SelectContent>
+                {ownerCandidates.length === 0 && <SelectItem value="none" disabled>No restaurant_owner users</SelectItem>}
+                {ownerCandidates.map(o => (
+                  <SelectItem key={o.id} value={String(o.id)}>{o.username} ({o.email})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=> setShowTransferModal(false)}>Cancel</Button>
+            <Button disabled={!selectedNewOwner} onClick={submitOwnershipTransfer}>Transfer</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

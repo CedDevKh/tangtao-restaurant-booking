@@ -4,9 +4,11 @@ import { getAuthToken } from './api';
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
 
 export interface BookingPayload {
-  offer: number; // Offer ID
+  offer?: number; // Offer ID (optional)
+  restaurant?: number; // Restaurant ID (optional, used when no offer)
   booking_time: string; // ISO string
   number_of_people: number;
+  slot_id?: number; // BookingSlot ID
 }
 
 export interface BookingResponse {

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import TimeslotChips from '@/components/TimeslotChips';
 import SearchBar from '@/components/search-bar';
 import { useAuth } from '@/contexts/AuthContext';
 import HomeContent from '@/components/HomeContent';
@@ -29,6 +30,26 @@ interface BackendRestaurant {
   is_featured: boolean;
   created_at: string;
   updated_at: string;
+  active_offers?: Offer[];
+  featured_offer?: Offer;
+}
+
+interface Offer {
+  id: number;
+  title: string;
+  description: string;
+  offer_type: 'percentage' | 'amount' | 'special';
+  discount_percentage?: number;
+  discount_amount?: number;
+  original_price?: number;
+  discounted_price?: number;
+  savings_amount?: number;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  is_featured: boolean;
+  is_available_today: boolean;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
@@ -62,6 +83,7 @@ export default function Home() {
   }, []);
 
   const featuredRestaurants = restaurants.filter(r => r.is_featured).slice(0, 4);
+  const restaurantsWithOffers = restaurants.filter(r => r.featured_offer).slice(0, 4);
   const displayRestaurants = featuredRestaurants.length > 0 ? featuredRestaurants : restaurants.slice(0, 4);
 
   const getPriceRangeDisplay = (priceRange: number) => {
@@ -178,6 +200,147 @@ export default function Home() {
         </section>
       )}
 
+      {/* Special Offers Section */}
+      {restaurantsWithOffers.length > 0 && (
+        <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8 bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-500 text-white rounded-full mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+            <h2 className="font-headline text-4xl font-bold text-red-700 dark:text-red-300">
+              🔥 Special Offers Available Now!
+            </h2>
+            <p className="mt-4 text-lg text-red-600 dark:text-red-400">
+              Don't miss these limited-time deals at our partner restaurants
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4 xl:gap-x-8">
+            {restaurantsWithOffers.map((restaurant) => (
+              <Card key={restaurant.id} className="group cursor-pointer hover:shadow-xl transition-all duration-300 border-2 border-red-200 dark:border-red-800 bg-white dark:bg-gray-900">
+                <div className="relative h-48 overflow-hidden rounded-t-lg bg-gray-200">
+                  {restaurant.image_url ? (
+                    <Image
+                      src={restaurant.image_url}
+                      alt={restaurant.name}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        img.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                      <svg className="h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                  )}
+                  {restaurant.is_featured && (
+                    <Badge className="absolute top-2 left-2 bg-yellow-500 text-black">
+                      Featured
+                    </Badge>
+                  )}
+                  <Badge className="absolute top-2 right-2 bg-background/80 text-foreground">
+                    {getPriceRangeDisplay(restaurant.price_range)}
+                  </Badge>
+                  {restaurant.featured_offer && (
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <Badge className="w-full justify-center bg-red-500 text-white font-bold text-sm py-2 animate-pulse">
+                        {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage
+                          ? `🎉 ${restaurant.featured_offer.discount_percentage}% OFF 🎉`
+                          : restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount
+                          ? `🎉 $${restaurant.featured_offer.discount_amount} OFF 🎉`
+                          : '🎉 SPECIAL OFFER 🎉'
+                        }
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="truncate">{restaurant.name}</CardTitle>
+                  <CardDescription className="capitalize text-sm">
+                    {restaurant.cuisine_type.replace('_', ' ')} Cuisine
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <span>{restaurant.rating}/5</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="truncate">{restaurant.address}</span>
+                    </div>
+                    {restaurant.opening_time && restaurant.closing_time && (
+                      <div className="flex items-center gap-1">
+                        <span>{formatTime(restaurant.opening_time)} - {formatTime(restaurant.closing_time)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <span>Up to {restaurant.capacity} guests</span>
+                    </div>
+                  </div>
+                  {restaurant.featured_offer && (
+                    <div className="mt-3 p-3 bg-red-100 dark:bg-red-950/50 rounded-lg border-2 border-red-300 dark:border-red-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-red-800 dark:text-red-200 text-sm">
+                            {restaurant.featured_offer.title}
+                          </p>
+                          <p className="text-xs text-red-600 dark:text-red-300 mt-1 font-medium">
+                            🕒 {restaurant.featured_offer.start_time} - {restaurant.featured_offer.end_time}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage && (
+                            <div className="font-black text-red-800 dark:text-red-200 text-lg">
+                              {restaurant.featured_offer.discount_percentage}% OFF
+                            </div>
+                          )}
+                          {restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount && (
+                            <div className="font-black text-red-800 dark:text-red-200 text-lg">
+                              ${restaurant.featured_offer.discount_amount} OFF
+                            </div>
+                          )}
+                          {restaurant.featured_offer.original_price && restaurant.featured_offer.discounted_price && (
+                            <div className="text-xs text-red-600 dark:text-red-300 mt-1">
+                              <span className="line-through">${restaurant.featured_offer.original_price}</span>
+                              {' → '}
+                              <span className="font-bold text-green-600">${restaurant.featured_offer.discounted_price}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-4">
+                    <Button asChild className="w-full bg-red-500 hover:bg-red-600 text-white font-bold">
+                      <Link href={`/restaurants/${restaurant.id}${restaurant.featured_offer ? `?offer=${restaurant.featured_offer.id}` : ''}`}>
+                        🎯 Claim This Offer!
+                      </Link>
+                    </Button>
+                  </div>
+                  <div className="mt-3">
+                    <TimeslotChips restaurantId={restaurant.id} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          <div className="text-center mt-12">
+            <Button asChild size="lg" className="bg-red-500 hover:bg-red-600 text-white font-bold">
+              <Link href="/restaurants">
+                View All Restaurants with Offers 🔥
+              </Link>
+            </Button>
+          </div>
+        </section>
+      )}
+
       <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <h2 className="text-center font-headline text-4xl font-bold">
           {featuredRestaurants.length > 0 ? 'Featured Restaurants' : 'Our Restaurants'}
@@ -226,6 +389,16 @@ export default function Home() {
                   <Badge className="absolute top-2 right-2 bg-background/80 text-foreground">
                     {getPriceRangeDisplay(restaurant.price_range)}
                   </Badge>
+                  {restaurant.featured_offer && (
+                    <Badge className="absolute bottom-2 left-2 bg-red-500 text-white font-bold">
+                      {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage
+                        ? `${restaurant.featured_offer.discount_percentage}% OFF`
+                        : restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount
+                        ? `$${restaurant.featured_offer.discount_amount} OFF`
+                        : 'SPECIAL OFFER'
+                      }
+                    </Badge>
+                  )}
                 </div>
                 <CardHeader className="pb-2">
                   <CardTitle className="truncate">{restaurant.name}</CardTitle>
@@ -259,9 +432,42 @@ export default function Home() {
                       {restaurant.description}
                     </p>
                   )}
+                  {restaurant.featured_offer && (
+                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-red-800 dark:text-red-200 text-sm">
+                            {restaurant.featured_offer.title}
+                          </p>
+                          <p className="text-xs text-red-600 dark:text-red-300 mt-1">
+                            {restaurant.featured_offer.start_time} - {restaurant.featured_offer.end_time}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage && (
+                            <div className="font-bold text-red-800 dark:text-red-200">
+                              {restaurant.featured_offer.discount_percentage}% OFF
+                            </div>
+                          )}
+                          {restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount && (
+                            <div className="font-bold text-red-800 dark:text-red-200">
+                              ${restaurant.featured_offer.discount_amount} OFF
+                            </div>
+                          )}
+                          {restaurant.featured_offer.original_price && restaurant.featured_offer.discounted_price && (
+                            <div className="text-xs text-red-600 dark:text-red-300">
+                              <span className="line-through">${restaurant.featured_offer.original_price}</span>
+                              {' → '}
+                              <span className="font-semibold">${restaurant.featured_offer.discounted_price}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-4">
                     <Button asChild className="w-full">
-                      <Link href="/restaurants">
+                      <Link href={`/restaurants/${restaurant.id}`}>
                         View Details
                       </Link>
                     </Button>

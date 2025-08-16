@@ -1,15 +1,12 @@
 
+'use client';
 
 import Image from 'next/image';
-import { notFound } from 'next/navigation';
+import { notFound, useSearchParams } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import BookingForm from '@/components/BookingForm';
 
-// Client wrapper for BookingForm
-// BookingForm must be rendered in a client component, so we use a wrapper
-function BookingFormClientWrapper({ restaurantId }: { restaurantId: number }) {
-  'use client';
-  const BookingForm = require('@/components/BookingForm').default;
-  return <BookingForm restaurantId={restaurantId} />;
-}
+// Client wrapper for BookingForm is no longer needed since this is now a client component
 
 interface Restaurant {
   id: number;
@@ -52,50 +49,126 @@ async function getRestaurant(id: string): Promise<Restaurant | null> {
   }
 }
 
+export default function RestaurantDetailPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-muted rounded w-1/2 mb-2"></div>
+          <div className="h-4 bg-muted rounded w-1/4"></div>
+        </div>
+      </div>
+    }>
+      <RestaurantContent params={params} />
+    </Suspense>
+  );
+}
 
-export default async function RestaurantDetailPage({ params }: PageProps) {
-  const { id } = await params;
-  const restaurant = await getRestaurant(id);
+function RestaurantContent({ params }: PageProps) {
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [loading, setLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const offerId = searchParams.get('offer');
+
+  useEffect(() => {
+    async function loadRestaurant() {
+      const resolvedParams = await params;
+      const restaurantData = await getRestaurant(resolvedParams.id);
+      setRestaurant(restaurantData);
+      setLoading(false);
+    }
+    loadRestaurant();
+  }, [params]);
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-muted rounded w-1/2 mb-2"></div>
+          <div className="h-4 bg-muted rounded w-1/4"></div>
+        </div>
+      </div>
+    );
+  }
+
   if (!restaurant) return notFound();
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row gap-8">
-        <div className="md:w-1/3">
+      <div className="flex flex-col lg:flex-row gap-8">
+        <div className="lg:w-1/2">
           {restaurant.image_url && (
             <Image
               src={restaurant.image_url}
               alt={restaurant.name}
-              width={400}
-              height={300}
-              className="rounded-lg object-cover w-full h-auto"
+              width={600}
+              height={400}
+              className="rounded-lg object-cover w-full h-auto shadow-lg"
               priority
             />
           )}
         </div>
-        <div className="md:w-2/3 space-y-4">
-          <h1 className="text-3xl font-bold">{restaurant.name}</h1>
-          <p className="text-muted-foreground">{restaurant.address}</p>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span><b>Cuisine:</b> {restaurant.cuisine_type}</span>
-            <span><b>Price:</b> {'$'.repeat(restaurant.price_range)}</span>
-            <span><b>Capacity:</b> {restaurant.capacity}</span>
-            <span><b>Rating:</b> {restaurant.rating}/5</span>
-          </div>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span><b>Phone:</b> {restaurant.phone_number}</span>
-            <span><b>Email:</b> {restaurant.email}</span>
+        <div className="lg:w-1/2 space-y-6">
+          <div className="space-y-4">
+            <h1 className="text-4xl font-bold text-foreground">{restaurant.name}</h1>
+            <p className="text-muted-foreground text-lg">{restaurant.address}</p>
+            
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-2">
+                <div><span className="font-semibold">Cuisine:</span> <span className="capitalize">{restaurant.cuisine_type.replace('_', ' ')}</span></div>
+                <div><span className="font-semibold">Price Range:</span> <span>{'$'.repeat(restaurant.price_range)}</span></div>
+                <div><span className="font-semibold">Capacity:</span> <span>{restaurant.capacity} guests</span></div>
+                <div><span className="font-semibold">Rating:</span> <span>{restaurant.rating}/5 ⭐</span></div>
+              </div>
+              <div className="space-y-2">
+                <div><span className="font-semibold">Phone:</span> <span>{restaurant.phone_number}</span></div>
+                <div><span className="font-semibold">Email:</span> <span>{restaurant.email}</span></div>
+                <div><span className="font-semibold">Hours:</span> <span>{restaurant.opening_time} - {restaurant.closing_time}</span></div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    restaurant.is_active 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                      : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                  }`}>
+                    {restaurant.is_active ? 'Open' : 'Closed'}
+                  </span>
+                  {restaurant.is_featured && (
+                    <span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-2 py-1 text-xs rounded-full">
+                      Featured
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {restaurant.website && (
-              <span><b>Website:</b> <a href={restaurant.website} className="underline text-blue-400" target="_blank" rel="noopener noreferrer">{restaurant.website}</a></span>
+              <div>
+                <span className="font-semibold">Website:</span>{' '}
+                <a 
+                  href={restaurant.website} 
+                  className="text-primary hover:underline" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  {restaurant.website}
+                </a>
+              </div>
+            )}
+
+            {restaurant.description && (
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">About This Restaurant</h3>
+                <p className="text-muted-foreground leading-relaxed">{restaurant.description}</p>
+              </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span><b>Open:</b> {restaurant.opening_time} - {restaurant.closing_time}</span>
-            <span><b>Status:</b> {restaurant.is_active ? 'Active' : 'Inactive'}</span>
-            {restaurant.is_featured && <span className="bg-yellow-200 text-yellow-800 px-2 rounded">Featured</span>}
-          </div>
-          <p className="mt-4">{restaurant.description}</p>
-          <BookingFormClientWrapper restaurantId={restaurant.id} />
+
+          <BookingForm 
+            restaurantId={restaurant.id} 
+            offerId={offerId ? parseInt(offerId) : undefined}
+          />
         </div>
       </div>
     </div>

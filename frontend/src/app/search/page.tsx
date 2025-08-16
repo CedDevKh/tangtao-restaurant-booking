@@ -28,6 +28,26 @@ interface BackendRestaurant {
   is_featured: boolean;
   created_at: string;
   updated_at: string;
+  active_offers?: Offer[];
+  featured_offer?: Offer;
+}
+
+interface Offer {
+  id: number;
+  title: string;
+  description: string;
+  offer_type: 'percentage' | 'amount' | 'special';
+  discount_percentage?: number;
+  discount_amount?: number;
+  original_price?: number;
+  discounted_price?: number;
+  savings_amount?: number;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  is_featured: boolean;
+  is_available_today: boolean;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
@@ -219,6 +239,16 @@ export default function SearchPage() {
                         {restaurant.rating && restaurant.rating > 4.0 && (
                           <Badge className="absolute -top-1 -right-1 bg-red-500 text-white text-xs">
                             HOT
+                          </Badge>
+                        )}
+                        {restaurant.featured_offer && (
+                          <Badge className="absolute -bottom-1 -left-1 bg-orange-500 text-white text-xs">
+                            {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage
+                              ? `${restaurant.featured_offer.discount_percentage}% OFF`
+                              : restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount
+                              ? `$${restaurant.featured_offer.discount_amount} OFF`
+                              : 'OFFER'
+                            }
                           </Badge>
                         )}
                       </div>

@@ -62,6 +62,10 @@ export default function Navbar({ className }: { className?: string }) {
       { href: "/recommendations", label: "AI Picks" },
     ];
 
+    if (user?.user_type === 'restaurant_owner') {
+      baseLinks.push({ href: "/restaurant-dashboard", label: "My Restaurant" });
+    }
+
     if (user?.is_staff) {
       baseLinks.push({ href: "/admin/dashboard", label: "Admin" });
     }
@@ -164,6 +168,11 @@ export default function Navbar({ className }: { className?: string }) {
         <DropdownMenuItem asChild>
             <Link href="/bookings">My Bookings</Link>
         </DropdownMenuItem>
+        {user?.user_type === 'restaurant_owner' && (
+          <DropdownMenuItem asChild>
+              <Link href="/restaurant-dashboard">My Restaurant</Link>
+          </DropdownMenuItem>
+        )}
         {user?.is_staff && (
           <DropdownMenuItem asChild>
               <Link href="/admin/dashboard">Admin</Link>
@@ -248,6 +257,13 @@ export default function Navbar({ className }: { className?: string }) {
                                         </Button>
                                     </SheetClose>
                                 )}
+                {user?.user_type === 'restaurant_owner' && (
+                  <SheetClose asChild>
+                    <Button variant="outline" className="w-full" asChild>
+                      <Link href="/restaurant-dashboard">My Restaurant</Link>
+                    </Button>
+                  </SheetClose>
+                )}
                                 <SheetClose asChild>
                                     <Button 
                                         variant="outline" 

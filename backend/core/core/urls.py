@@ -19,7 +19,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
 from users.views import UserViewSet, UserRegistrationView, UserLoginView
-from marketplace.views import RestaurantViewSet, OfferViewSet, BookingViewSet, AdminRestaurantViewSet
+from marketplace.views import RestaurantViewSet, OfferViewSet, BookingViewSet, AdminRestaurantViewSet, BookingSlotAvailabilityViewSet, BookingSlotViewSet
 from .health import health_check
 import logging
 
@@ -30,6 +30,8 @@ router.register(r'users', UserViewSet)
 router.register(r'restaurants', RestaurantViewSet)
 router.register(r'offers', OfferViewSet)
 router.register(r'bookings', BookingViewSet, basename='booking')
+router.register(r'slots/availability', BookingSlotAvailabilityViewSet, basename='slot-availability')
+router.register(r'booking-slots', BookingSlotViewSet, basename='booking-slot')
 router.register(r'admin/restaurants', AdminRestaurantViewSet, basename='admin-restaurants')
 
 urlpatterns = [

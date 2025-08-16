@@ -57,25 +57,142 @@ class Restaurant(models.Model):
         verbose_name_plural = 'Restaurants'
 
 class Offer(models.Model):
+    OFFER_TYPE_CHOICES = (
+        ('percentage', 'Percentage Discount'),
+        ('amount', 'Fixed Amount Discount'),
+        ('special', 'Special Offer'),
+    )
+    
+    RECURRING_CHOICES = (
+        ('none', 'One-time offer'),
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+    )
+    
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='offers')
     title = models.CharField(max_length=255)
     description = models.TextField()
-    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
-    available_quantity = models.IntegerField(help_text="Number of bookings available for this offer")
+    offer_type = models.CharField(max_length=20, choices=OFFER_TYPE_CHOICES, default='percentage')
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True, help_text="Discount percentage (0-100)")
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Fixed discount amount")
+    original_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Original price before discount")
+    
+    # Time-based offer settings
+    start_date = models.DateField(help_text="Start date for the offer")
+    end_date = models.DateField(help_text="End date for the offer")
+    start_time = models.TimeField(help_text="Daily start time for the offer (e.g., 18:00 for 6 PM)")
+    end_time = models.TimeField(help_text="Daily end time for the offer (e.g., 21:00 for 9 PM)")
+    
+    # Recurring settings
+    recurring = models.CharField(max_length=20, choices=RECURRING_CHOICES, default='none')
+    days_of_week = models.CharField(
+        max_length=20, 
+        blank=True, 
+        null=True,
+        help_text="Days of week (0=Monday, 6=Sunday). E.g., '0,1,2,3,4' for weekdays"
+    )
+    
+    # Availability settings
+    available_quantity = models.IntegerField(help_text="Number of bookings available for this offer per day")
+    max_people_per_booking = models.IntegerField(default=6, help_text="Maximum people per booking for this offer")
+    min_advance_booking = models.IntegerField(default=1, help_text="Minimum hours in advance for booking")
+    
+    # Status and metadata
     is_active = models.BooleanField(default=True)
+    is_featured = models.BooleanField(default=False, help_text="Show on featured offers")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.title} - {self.restaurant.name}"
 
+    @property
+    def discounted_price(self):
+        """Calculate the final price after discount"""
+        if not self.original_price:
+            return None
+        
+        if self.offer_type == 'percentage' and self.discount_percentage:
+            return self.original_price * (1 - self.discount_percentage / 100)
+        elif self.offer_type == 'amount' and self.discount_amount:
+            return max(0, self.original_price - self.discount_amount)
+        
+        return self.original_price
+
+    @property
+    def savings_amount(self):
+        """Calculate the amount saved"""
+        if not self.original_price:
+            return None
+        
+        discounted = self.discounted_price
+        if discounted is not None:
+            return self.original_price - discounted
+        
+        return None
+
+    @property
+    def is_available_today(self):
+        """Check if offer is available today"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        if not (self.start_date <= today <= self.end_date):
+            return False
+        
+        if self.days_of_week:
+            weekday = today.weekday()  # 0=Monday, 6=Sunday
+            allowed_days = [int(d.strip()) for d in self.days_of_week.split(',') if d.strip().isdigit()]
+            if weekday not in allowed_days:
+                return False
+        
+        return self.is_active
+
     class Meta:
         verbose_name = 'Offer'
         verbose_name_plural = 'Offers'
         ordering = ['-created_at']
+
+class OfferTimeSlot(models.Model):
+    """A 30-minute timeslot discount attached to an Offer.
+
+    This allows configuring multiple discounts per half-hour across a day.
+    The slots are date-agnostic and repeat on days the parent Offer is active
+    (within its date range and optional days_of_week constraints).
+    """
+    offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='time_slots')
+    # Optional denormalization for easier querying together with BookingSlot merges
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='offer_time_slots')
+    start_time = models.TimeField(help_text="Start time for this half-hour slot (minutes must be 00 or 30)")
+    end_time = models.TimeField(help_text="End time for this half-hour slot (typically start+30m)")
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Offer Time Slot'
+        verbose_name_plural = 'Offer Time Slots'
+        ordering = ['start_time']
+        unique_together = ('offer', 'start_time')
+
+    def __str__(self):
+        return f"{self.offer.restaurant.name} {self.offer.title} @ {self.start_time}"
+
+    def clean(self):
+        # Validate 30-minute grid
+        if self.start_time.minute not in (0, 30) or self.end_time.minute not in (0, 30):
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Timeslot minutes must be 00 or 30")
+        # Enforce 30-minute duration by default
+        dur = self.end_time.hour * 60 + self.end_time.minute - (self.start_time.hour * 60 + self.start_time.minute)
+        if dur != 30:
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Timeslot duration must be exactly 30 minutes")
+
+    # NOTE: Remember to run makemigrations/migrate after adding this model.
 
 class Booking(models.Model):
     STATUS_CHOICES = (
@@ -87,6 +204,7 @@ class Booking(models.Model):
     diner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bookings')
     offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
+    slot = models.ForeignKey('BookingSlot', on_delete=models.SET_NULL, null=True, blank=True, related_name='slot_bookings', help_text="The concrete BookingSlot reserved (if using slot system)")
     booking_time = models.DateTimeField(help_text="The time the diner plans to arrive for the offer")
     number_of_people = models.IntegerField()
     status = models.CharField(
@@ -110,3 +228,66 @@ class Booking(models.Model):
         verbose_name_plural = 'Bookings'
         unique_together = ('diner', 'offer', 'booking_time') # Prevent duplicate bookings for the same offer at the same time by the same diner
         ordering = ['booking_time']
+
+class BookingSlot(models.Model):
+    """Discrete time slot for restaurant discounting and capacity management.
+
+    Slots can be pre-created (e.g. daily cron) or ad-hoc via admin/owner UI.
+    The system aggregates bookings to determine remaining capacity.
+    """
+    STATUS_CHOICES = (
+        ('open', 'Open'),
+        ('closed', 'Closed'),
+        ('full', 'Full'),
+    )
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='slots')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    capacity = models.PositiveIntegerField(default=0, help_text="Max total guests for this slot (0 = unlimited)")
+    min_party_size = models.PositiveIntegerField(default=1)
+    max_party_size = models.PositiveIntegerField(default=20)
+    rules = models.JSONField(default=dict, blank=True, help_text="Arbitrary rule metadata e.g. {'excludes': 'alcohol'}")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='open')
+    lead_time_minutes = models.PositiveIntegerField(default=60, help_text="Minimum minutes before start required for booking")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Booking Slot'
+        verbose_name_plural = 'Booking Slots'
+        unique_together = ('restaurant', 'date', 'start_time')
+        ordering = ['date', 'start_time']
+
+    def __str__(self):
+        return f"{self.restaurant.name} {self.date} {self.start_time}-{self.end_time}"
+
+    @property
+    def remaining_capacity(self):
+        if self.capacity == 0:
+            return None  # Unlimited
+        from django.db.models import Sum
+        booked = self.slot_bookings.aggregate(total=Sum('number_of_people'))['total'] or 0
+        return max(0, self.capacity - booked)
+
+    def is_full(self):
+        rc = self.remaining_capacity
+        return rc is not None and rc <= 0
+
+    def effective_status(self):
+        from django.utils import timezone
+        if not self.is_active or self.status == 'closed':
+            return 'closed'
+        # Past check
+        start_dt = timezone.make_aware(timezone.datetime.combine(self.date, self.start_time), timezone.get_current_timezone())
+        if start_dt < timezone.now():
+            return 'past'
+        if self.is_full():
+            return 'full'
+        # Lead time check
+        delta = start_dt - timezone.now()
+        if delta.total_seconds() < self.lead_time_minutes * 60:
+            return 'closed'
+        return 'open'

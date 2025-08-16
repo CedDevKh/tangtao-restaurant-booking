@@ -1,16 +1,45 @@
+"use client";
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Restaurant } from "@/lib/types";
 import { Star, MapPin } from "lucide-react";
+import { getAuthToken } from "@/lib/api";
 
 type RestaurantCardProps = {
   restaurant: Restaurant;
 };
 
+const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+type TimeslotEntry = { time: string; discount_percent: number | null; source: 'slot'|'offer'|'both'; slot_id?: number|null; offer_id?: number|null };
+
 export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
-  const firstDiscount = restaurant.discounts[0];
+  const [slots, setSlots] = useState<TimeslotEntry[] | null>(null);
+  const todayIso = useMemo(()=> new Date().toISOString().split('T')[0], []);
+
+  useEffect(() => {
+    let ignore = false;
+    const fetchSlots = async () => {
+      try {
+        const token = getAuthToken();
+        const res = await fetch(`${API_URL}/api/offers/timeslots/?restaurant=${restaurant.id}&date=${todayIso}&limit=6`, {
+          headers: token ? { 'Authorization': `Token ${token}` } : undefined,
+          cache: 'no-store',
+        });
+        const data = await res.json().catch(()=>null);
+        if (!ignore && res.ok && data?.timeslots) {
+          setSlots(data.timeslots as TimeslotEntry[]);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchSlots();
+    return () => { ignore = true; };
+  }, [restaurant.id, todayIso]);
 
   return (
     <Card className="flex h-full flex-col overflow-hidden transition-transform duration-200 hover:scale-105 hover:shadow-xl">
@@ -47,12 +76,19 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
         </div>
       </CardContent>
       <CardFooter className="p-4 pt-0">
-        {firstDiscount && (
-           <Link href={`/restaurants/${restaurant.id}`} className="w-full">
-                <Badge className="w-full justify-center bg-yellow-500 py-2 text-lg font-bold text-black hover:bg-yellow-600">
-                    {firstDiscount.discount}% off at {firstDiscount.time}
+        {slots && slots.length > 0 ? (
+          <div className="flex w-full flex-wrap gap-2">
+            {slots.map((s) => (
+              <Link key={`${s.time}-${s.offer_id ?? ''}-${s.slot_id ?? ''}`} href={`/restaurants/${restaurant.id}?time=${encodeURIComponent(s.time)}`} prefetch={false}>
+                <Badge className="rounded-md bg-red-500 px-3 py-1 text-xs font-bold text-white hover:bg-red-600">
+                  <span>{s.time}</span>
+                  <span className="ml-2">{s.discount_percent ? `-${Math.round(s.discount_percent)}%` : 'OFFER'}</span>
                 </Badge>
-            </Link>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="w-full text-center text-xs text-muted-foreground">No timeslot deals today</div>
         )}
       </CardFooter>
     </Card>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { buildApiUrl } from '@/lib/base-url';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAuthToken } from '@/lib/api';
@@ -11,10 +12,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, RefreshCw, Star, Eye, EyeOff } from 'lucide-react';
+import OfferComposer, { type SimpleRestaurant, type OfferComposerInitial } from '@/components/offers/OfferComposer';
 
 interface OwnedRestaurant {
 	id: number;
@@ -72,7 +75,7 @@ interface Booking {
 	created_at: string;
 }
 
-const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000')).replace(/\/$/, '');
+// Centralized API URL helper removes trailing slash issues
 
 type OfferTimeSlotForm = {
 	id?: number;
@@ -88,7 +91,12 @@ export default function RestaurantOwnerDashboard() {
 	const router = useRouter();
 	const { toast } = useToast();
 
+	// Avoid SSR/client HTML mismatches by rendering only after mount
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => { setMounted(true); }, []);
+
 	const [loading, setLoading] = useState(true);
+	const [tab, setTab] = useState<'restaurants'|'offers'|'slots'|'bookings'>('restaurants');
 	const [restaurants, setRestaurants] = useState<OwnedRestaurant[]>([]);
 	const [selectedRestaurantId, setSelectedRestaurantId] = useState<number | null>(null);
 	const [offers, setOffers] = useState<Offer[]>([]);
@@ -99,6 +107,7 @@ export default function RestaurantOwnerDashboard() {
 	const [editingSlot, setEditingSlot] = useState<any>(null);
 	const [showOfferModal, setShowOfferModal] = useState(false);
 	const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+	const [editingInitial, setEditingInitial] = useState<OfferComposerInitial | null>(null);
 	const [offerForm, setOfferForm] = useState<any>({});
 	const [offerSubmitting, setOfferSubmitting] = useState(false);
 	const [offerTimeSlots, setOfferTimeSlots] = useState<OfferTimeSlotForm[]>([]);
@@ -107,7 +116,7 @@ export default function RestaurantOwnerDashboard() {
 	const deleteOffer = async (offerId: number, restaurantId: number) => {
 		if (!confirm('Delete this offer?')) return;
 		try {
-			const res = await fetch(`${API_URL}/api/offers/${offerId}/`, { method: 'DELETE', headers: authHeaders() });
+			const res = await fetch(buildApiUrl(`/api/offers/${offerId}/`), { method: 'DELETE', headers: authHeaders() });
 			if (!res.ok) {
 				const data = await res.json().catch(()=>null);
 				toast({ title: 'Delete Failed', description: data ? JSON.stringify(data) : 'Could not delete offer', variant: 'destructive' });
@@ -146,7 +155,7 @@ export default function RestaurantOwnerDashboard() {
 	const loadData = async () => {
 		try {
 			setLoading(true);
-			const res = await fetch(`${API_URL}/api/restaurants/mine/`, { headers: authHeaders() });
+			const res = await fetch(buildApiUrl('/api/restaurants/mine/'), { headers: authHeaders() });
 			if (!res.ok) throw new Error('Failed restaurants');
 			const data = await res.json();
 			const list: OwnedRestaurant[] = Array.isArray(data) ? data : (data.results || []);
@@ -164,7 +173,7 @@ export default function RestaurantOwnerDashboard() {
 	const fetchOffers = async (restaurantId: number | null = selectedRestaurantId) => {
 		if (!restaurantId) return;
 		try {
-			const res = await fetch(`${API_URL}/api/offers/?restaurant=${restaurantId}`, { headers: authHeaders() });
+			const res = await fetch(buildApiUrl(`/api/offers/?restaurant=${restaurantId}`), { headers: authHeaders() });
 			if (!res.ok) throw new Error('Failed offers');
 			const data = await res.json();
 			setOffers(Array.isArray(data) ? data : data.results || []);
@@ -174,7 +183,7 @@ export default function RestaurantOwnerDashboard() {
 	const fetchSlots = async (restaurantId: number | null = selectedRestaurantId) => {
 		if (!restaurantId) return;
 		try {
-			const res = await fetch(`${API_URL}/api/booking-slots/?restaurant=${restaurantId}`, { headers: authHeaders() });
+			const res = await fetch(buildApiUrl(`/api/booking-slots/?restaurant=${restaurantId}`), { headers: authHeaders() });
 			if (!res.ok) throw new Error('Failed slots');
 			const data = await res.json();
 			setSlots(Array.isArray(data) ? data : data.results || []);
@@ -183,7 +192,7 @@ export default function RestaurantOwnerDashboard() {
 
 	const fetchBookings = async () => {
 		try {
-			const res = await fetch(`${API_URL}/api/bookings/`, { headers: authHeaders() });
+			const res = await fetch(buildApiUrl('/api/bookings/'), { headers: authHeaders() });
 			if (!res.ok) throw new Error('Failed bookings');
 			const data = await res.json();
 			setBookings(Array.isArray(data) ? data : data.results || []);
@@ -268,7 +277,7 @@ export default function RestaurantOwnerDashboard() {
 		if (!slotForm.restaurant) return;
 		try {
 			const method = editingSlot ? 'PUT' : 'POST';
-			const url = editingSlot ? `${API_URL}/api/booking-slots/${editingSlot.id}/` : `${API_URL}/api/booking-slots/`;
+			const url = editingSlot ? buildApiUrl(`/api/booking-slots/${editingSlot.id}/`) : buildApiUrl('/api/booking-slots/');
 			const res = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(slotForm) });
 			const data = await res.json().catch(()=>null);
 			if (!res.ok) {
@@ -287,7 +296,7 @@ export default function RestaurantOwnerDashboard() {
 	const deleteSlot = async (slot: any) => {
 		if (!confirm('Delete this slot?')) return;
 		try {
-			const res = await fetch(`${API_URL}/api/booking-slots/${slot.id}/`, { method: 'DELETE', headers: authHeaders() });
+			const res = await fetch(buildApiUrl(`/api/booking-slots/${slot.id}/`), { method: 'DELETE', headers: authHeaders() });
 			if (res.ok) {
 				toast({ title: 'Deleted', description: 'Slot removed' });
 				fetchSlots(slot.restaurant);
@@ -296,24 +305,30 @@ export default function RestaurantOwnerDashboard() {
 	};
 
 	const openEditOffer = (offer: Offer) => {
-			setOfferForm({ ...offer });
-			setEditingOffer(offer);
-			// Load existing time slots for edit
-			fetch(`${API_URL}/api/offers/${offer.id}/`, { headers: authHeaders() })
-				.then(r => r.json())
-				.then(data => {
-					const slots = (data?.time_slots_detail || []).map((s:any)=>({
-						id: s.id,
-						start_time: (s.start_time || '').slice(0,5),
-						end_time: (s.end_time || '').slice(0,5),
-						discount_percentage: s.discount_percentage != null ? Number(s.discount_percentage) : null,
-						discount_amount: s.discount_amount != null ? Number(s.discount_amount) : null,
-						is_active: s.is_active,
-					})) as OfferTimeSlotForm[];
-					setOfferTimeSlots(slots);
-				})
-				.catch(()=> setOfferTimeSlots([]))
-				.finally(()=> setShowOfferModal(true));
+		setEditingOffer(offer);
+		// Fetch full details and map to OfferComposerInitial
+		fetch(buildApiUrl(`/api/offers/${offer.id}/`), { headers: authHeaders() })
+			.then(r => r.json())
+			.then(data => {
+				const init: OfferComposerInitial = {
+					restaurant: data.restaurant,
+					title: data.title,
+					description: data.description,
+					start_date: data.start_date,
+					end_date: data.end_date,
+					discount_percentage: data.discount_percentage ?? undefined,
+					available_quantity: data.available_quantity ?? undefined,
+					days_of_week: data.days_of_week ?? undefined,
+					time_slots: Array.isArray(data.time_slots_detail) ? data.time_slots_detail : [],
+					is_active: data.is_active,
+				};
+				setEditingInitial(init);
+				setShowOfferModal(true);
+			})
+			.catch(() => {
+				setEditingInitial(null);
+				setShowOfferModal(true);
+			});
 	};
 
 	const submitOffer = async () => {
@@ -321,7 +336,7 @@ export default function RestaurantOwnerDashboard() {
 		try {
 			setOfferSubmitting(true);
 			const method = editingOffer ? 'PUT' : 'POST';
-			const url = editingOffer ? `${API_URL}/api/offers/${editingOffer.id}/` : `${API_URL}/api/offers/`;
+			const url = editingOffer ? buildApiUrl(`/api/offers/${editingOffer.id}/`) : buildApiUrl('/api/offers/');
 				const payload = {
 					...offerForm,
 					time_slots: offerTimeSlots.map(s => ({
@@ -353,7 +368,7 @@ export default function RestaurantOwnerDashboard() {
 	const toggleOffer = async (offer: Offer, field: 'active' | 'featured') => {
 		try {
 			const endpoint = field === 'active' ? 'toggle_active' : 'toggle_featured';
-			const res = await fetch(`${API_URL}/api/offers/${offer.id}/${endpoint}/`, { method: 'POST', headers: authHeaders() });
+			const res = await fetch(buildApiUrl(`/api/offers/${offer.id}/${endpoint}/`), { method: 'POST', headers: authHeaders() });
 			if (res.ok) {
 				fetchOffers(offer.restaurant);
 			}
@@ -364,11 +379,12 @@ export default function RestaurantOwnerDashboard() {
 		try {
 			const payload: any = { status, booking_time: booking.booking_time, number_of_people: booking.number_of_people };
 			if (booking.offer) payload.offer = booking.offer; else if (booking.restaurant) payload.restaurant = booking.restaurant;
-			const res = await fetch(`${API_URL}/api/bookings/${booking.id}/`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(payload) });
+			const res = await fetch(buildApiUrl(`/api/bookings/${booking.id}/`), { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(payload) });
 			if (res.ok) fetchBookings();
 		} catch (e) { console.error(e); }
 	};
 
+	if (!mounted) return null;
 	if (!isLoggedIn || loading) return <div className="container mx-auto p-6">Loading...</div>;
 
 	return (
@@ -402,7 +418,7 @@ export default function RestaurantOwnerDashboard() {
 				</Card>
 			</div>
 
-			<Tabs defaultValue="restaurants" className="space-y-4">
+			<Tabs value={tab} onValueChange={(v)=> setTab(v as any)} className="space-y-4">
 				<TabsList>
 					<TabsTrigger value="restaurants">Restaurants</TabsTrigger>
 					<TabsTrigger value="offers" disabled={!selectedRestaurantId}>Offers</TabsTrigger>
@@ -417,7 +433,7 @@ export default function RestaurantOwnerDashboard() {
 								<CardHeader className="flex flex-row justify-between items-start">
 									<div>
 										<CardTitle className="flex items-center gap-2">
-											<button onClick={()=>{setSelectedRestaurantId(r.id); fetchOffers(r.id);}} className="hover:underline text-left">{r.name}</button>
+											<button onClick={()=>{setSelectedRestaurantId(r.id); fetchOffers(r.id); setTab('offers');}} className="hover:underline text-left">{r.name}</button>
 											{r.is_featured && <Badge variant="secondary"><Star className="h-3 w-3 mr-1" />Featured</Badge>}
 											<Badge variant={r.is_active ? 'default' : 'destructive'}>{r.is_active? 'Active':'Inactive'}</Badge>
 										</CardTitle>
@@ -456,6 +472,7 @@ export default function RestaurantOwnerDashboard() {
 										<Button size="sm" variant="outline" onClick={()=>toggleOffer(o,'featured')}><Star className="h-4 w-4" /></Button>
 										<Button size="sm" variant="outline" onClick={()=>toggleOffer(o,'active')}>{o.is_active? <EyeOff className="h-4 w-4" />:<Eye className="h-4 w-4" />}</Button>
 										<Button size="sm" variant="outline" onClick={()=>openEditOffer(o)}>Edit</Button>
+										<Button size="sm" variant="destructive" onClick={()=> deleteOffer(o.id, o.restaurant)}>Delete</Button>
 									</div>
 								</CardHeader>
 								<CardContent className="text-xs space-y-1 text-muted-foreground">
@@ -506,6 +523,9 @@ export default function RestaurantOwnerDashboard() {
 											<CardDescription>
 												{b.restaurant_name || '—'} • {new Date(b.booking_time).toLocaleString()} • {b.number_of_people} ppl
 											</CardDescription>
+											{(b as any).contact && ((b as any).contact.name || (b as any).contact.email || (b as any).contact.phone) && (
+												<p className="text-xs text-muted-foreground">Contact: {[ (b as any).contact.name, (b as any).contact.email, (b as any).contact.phone ].filter(Boolean).join(' · ')}</p>
+											)}
 										</div>
 										<div className="flex gap-2">
 											{['pending','confirmed','cancelled','completed'].map(st => (
@@ -521,181 +541,76 @@ export default function RestaurantOwnerDashboard() {
 			</Tabs>
 
 			<Dialog open={showOfferModal} onOpenChange={setShowOfferModal}>
-				<DialogContent className="max-w-lg">
-					<DialogHeader>
-						<DialogTitle>{editingOffer ? 'Edit Offer' : 'New Offer'}</DialogTitle>
-						<DialogDescription>Configure a promotional offer for your restaurant.</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-						<div className="space-y-2">
-							<Label>Title</Label>
-							<Input value={offerForm.title || ''} onChange={e=> setOfferForm((f:any)=>({...f,title:e.target.value}))} />
-						</div>
-						<div className="space-y-2">
-							<Label>Description</Label>
-							<Textarea value={offerForm.description || ''} onChange={e=> setOfferForm((f:any)=>({...f,description:e.target.value}))} />
-						</div>
-							<div className="grid grid-cols-2 gap-4">
-							<div className="space-y-2">
-								<Label>Type</Label>
-								<Select value={offerForm.offer_type} onValueChange={(v)=> setOfferForm((f:any)=>({...f,offer_type:v}))}>
-									<SelectTrigger><SelectValue /></SelectTrigger>
-									<SelectContent>
-										<SelectItem value="percentage">Percentage</SelectItem>
-										<SelectItem value="amount">Amount</SelectItem>
-										<SelectItem value="special">Special</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-							{offerForm.offer_type === 'percentage' && (
-								<div className="space-y-2">
-									<Label>Discount %</Label>
-									<Input type="number" value={offerForm.discount_percentage || 0} onChange={e=> setOfferForm((f:any)=>({...f,discount_percentage:Number(e.target.value)}))} />
-								</div>
-							)}
-							{offerForm.offer_type === 'amount' && (
-								<div className="space-y-2">
-									<Label>Discount Amount</Label>
-									<Input type="number" value={offerForm.discount_amount || 0} onChange={e=> setOfferForm((f:any)=>({...f,discount_amount:Number(e.target.value)}))} />
-								</div>
-							)}
-							<div className="space-y-2">
-								<Label>Original Price</Label>
-								<Input type="number" value={offerForm.original_price || 0} onChange={e=> setOfferForm((f:any)=>({...f,original_price:Number(e.target.value)}))} />
-							</div>
-						</div>
-							<div className="space-y-2">
-								<Label>Days of Week (0=Mon ... 6=Sun)</Label>
-								<Input placeholder="e.g. 0,1,2,3,4 for weekdays" value={offerForm.days_of_week || ''} onChange={e=> setOfferForm((f:any)=>({...f,days_of_week:e.target.value}))} />
-								<p className="text-xs text-muted-foreground">Leave blank for every day.</p>
-							</div>
-						<div className="grid grid-cols-2 gap-4">
-							<div className="space-y-2">
-								<Label>Start Date</Label>
-								<Input type="date" value={offerForm.start_date || ''} onChange={e=> setOfferForm((f:any)=>({...f,start_date:e.target.value}))} />
-							</div>
-							<div className="space-y-2">
-								<Label>End Date</Label>
-								<Input type="date" value={offerForm.end_date || ''} onChange={e=> setOfferForm((f:any)=>({...f,end_date:e.target.value}))} />
-							</div>
-									<div className="space-y-2">
-								<Label>Start Time</Label>
-																<Input type="time" value={offerForm.start_time || ''} onChange={e=> {
-																	const v = e.target.value;
-																	// auto-adjust end time to +1 hour to satisfy backend validation
-																	try {
-																		const [h,m] = String(v).split(':').map((x:string)=> parseInt(x,10));
-																		const endHour = (h + 1) % 24; const end = `${String(endHour).padStart(2,'0')}:${String(m||0).padStart(2,'0')}`;
-																		setOfferForm((f:any)=>({...f,start_time:v,end_time:end}));
-																	} catch {
-																		setOfferForm((f:any)=>({...f,start_time:v}));
-																	}
-																}} />
-							</div>
-							<div className="space-y-2">
-								<Label>End Time</Label>
-								<Input type="time" value={offerForm.end_time || ''} onChange={e=> setOfferForm((f:any)=>({...f,end_time:e.target.value}))} />
-							</div>
-						</div>
-						<div className="grid grid-cols-2 gap-4">
-							<div className="space-y-2">
-								<Label>Available Quantity (per day)</Label>
-								<Input type="number" value={offerForm.available_quantity || 0} onChange={e=> setOfferForm((f:any)=>({...f,available_quantity:Number(e.target.value)}))} />
-							</div>
-							<div className="space-y-2">
-								<Label>Max People / Booking</Label>
-								<Input type="number" value={offerForm.max_people_per_booking || 0} onChange={e=> setOfferForm((f:any)=>({...f,max_people_per_booking:Number(e.target.value)}))} />
-							</div>
-							<div className="space-y-2">
-								<Label>Min Advance (hrs)</Label>
-								<Input type="number" value={offerForm.min_advance_booking || 0} onChange={e=> setOfferForm((f:any)=>({...f,min_advance_booking:Number(e.target.value)}))} />
-							</div>
-								<div className="space-y-2">
-								<Label>Recurring</Label>
-								<Select value={offerForm.recurring} onValueChange={(v)=> setOfferForm((f:any)=>({...f,recurring:v}))}>
-									<SelectTrigger><SelectValue /></SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">None</SelectItem>
-										<SelectItem value="daily">Daily</SelectItem>
-										<SelectItem value="weekly">Weekly</SelectItem>
-										<SelectItem value="monthly">Monthly</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-												<div className="grid grid-cols-2 gap-4">
-									<div className="flex items-center gap-2">
-								<input id="is_active" type="checkbox" checked={offerForm.is_active} onChange={e=> setOfferForm((f:any)=>({...f,is_active:e.target.checked}))} />
-								<Label htmlFor="is_active">Active</Label>
-							</div>
-							<div className="flex items-center gap-2">
-								<input id="is_featured" type="checkbox" checked={offerForm.is_featured} onChange={e=> setOfferForm((f:any)=>({...f,is_featured:e.target.checked}))} />
-								<Label htmlFor="is_featured">Featured</Label>
-							</div>
-						</div>
-												<div className="space-y-2">
-													<div className="flex items-center justify-between">
-														<Label>30-minute Time Slots</Label>
-														<Button size="sm" type="button" onClick={()=> {
-															const base = offerForm.start_time || '18:00';
-															const [h,m] = String(base).split(':').map((x:string)=> parseInt(x,10));
-															const endMin = (m + 30) % 60; const endHour = h + Math.floor((m + 30)/60);
-															const end = `${String(endHour).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
-															setOfferTimeSlots(s => [...s, { start_time: base, end_time: end, discount_percentage: offerForm.discount_percentage ?? 10, discount_amount: null, is_active: true }]);
-														}}>Add Slot</Button>
-													</div>
-													{offerTimeSlots.length === 0 && <p className="text-xs text-muted-foreground">Add 30-minute slots. Minutes must be 00 or 30. Each slot is exactly 30 minutes.</p>}
-													<div className="space-y-2">
-														{offerTimeSlots.map((s, idx) => (
-															<div key={idx} className="grid grid-cols-12 gap-2 items-end">
-																<div className="col-span-3">
-																	<Label className="text-xs">Start</Label>
-																	<Input type="time" step={1800} value={s.start_time} onChange={e => {
-																		const start = e.target.value;
-																		const [h,m] = start.split(':').map(n=>parseInt(n,10));
-																		const endMin = (m + 30) % 60; const endHour = h + Math.floor((m + 30)/60);
-																		const end = `${String(endHour).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
-																		setOfferTimeSlots(list => list.map((it,i)=> i===idx? {...it, start_time:start, end_time:end }: it));
-																	}} />
-																</div>
-																<div className="col-span-3">
-																	<Label className="text-xs">End</Label>
-																	<Input type="time" step={1800} value={s.end_time} onChange={e => {
-																		setOfferTimeSlots(list => list.map((it,i)=> i===idx? {...it, end_time:e.target.value }: it));
-																	}} />
-																</div>
-																<div className="col-span-3">
-																	<Label className="text-xs">Discount %</Label>
-																	<Input type="number" value={s.discount_percentage ?? ''} onChange={e => {
-																		const v = e.target.value === '' ? null : Number(e.target.value);
-																		setOfferTimeSlots(list => list.map((it,i)=> i===idx? {...it, discount_percentage:v, discount_amount:null }: it));
-																	}} />
-																</div>
-																<div className="col-span-2">
-																	<Label className="text-xs">$ Amount</Label>
-																	<Input type="number" value={s.discount_amount ?? ''} onChange={e => {
-																		const v = e.target.value === '' ? null : Number(e.target.value);
-																		setOfferTimeSlots(list => list.map((it,i)=> i===idx? {...it, discount_amount:v, discount_percentage:null }: it));
-																	}} />
-																</div>
-																<div className="col-span-1 flex gap-2 items-center">
-																	<input type="checkbox" checked={s.is_active ?? true} onChange={e => setOfferTimeSlots(list => list.map((it,i)=> i===idx? {...it, is_active:e.target.checked }: it))} />
-																</div>
-																<div className="col-span-12 flex justify-end">
-																	<Button size="sm" variant="outline" type="button" onClick={()=> setOfferTimeSlots(list => list.filter((_,i)=> i!==idx))}>Remove</Button>
-																</div>
-															</div>
-														))}
-													</div>
-												</div>
-					</div>
-					<DialogFooter>
-								<Button variant="outline" onClick={()=> setShowOfferModal(false)}>Cancel</Button>
+				<DialogContent className="sm:max-w-[1000px] max-h-[90vh] overflow-y-auto">
+					{!editingOffer ? (
+						<>
+							<DialogHeader>
+								<DialogTitle>Create New Offer</DialogTitle>
+								<DialogDescription>Use the composer below to create and preview your offer.</DialogDescription>
+							</DialogHeader>
+							<OfferComposer
+								restaurants={restaurants.map(r => ({ id: r.id, name: r.name }) as SimpleRestaurant)}
+								defaultRestaurantId={selectedRestaurantId ?? undefined}
+								onCancel={() => setShowOfferModal(false)}
+								onSubmit={async (payload, publish) => {
+									try {
+										setOfferSubmitting(true);
+										const res = await fetch(buildApiUrl('/api/offers/'), { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+										const data = await res.json().catch(() => null);
+										if (!res.ok) {
+											toast({ title: 'Offer Error', description: data ? JSON.stringify(data) : 'Failed saving offer', variant: 'destructive' });
+											return;
+										}
+										toast({ title: publish ? 'Published' : 'Draft Saved', description: 'Offer created successfully' });
+										setShowOfferModal(false);
+										await fetchOffers(payload.restaurant);
+									} catch (e) {
+										console.error(e);
+										toast({ title: 'Error', description: 'Could not save offer', variant: 'destructive' });
+									} finally {
+										setOfferSubmitting(false);
+									}
+								}}
+							/>
+						</>
+						) : (
+							<>
+								<DialogHeader>
+									<DialogTitle>Edit Offer</DialogTitle>
+									<DialogDescription>Update the offer details below.</DialogDescription>
+								</DialogHeader>
 								{editingOffer && (
-									<Button variant="outline" onClick={()=> deleteOffer(editingOffer.id, editingOffer.restaurant)}>Delete</Button>
+									<OfferComposer
+										restaurants={restaurants.map(r => ({ id: r.id, name: r.name }) as SimpleRestaurant)}
+										defaultRestaurantId={editingInitial?.restaurant ?? selectedRestaurantId ?? undefined}
+										initial={editingInitial ?? undefined}
+										onCancel={() => { setShowOfferModal(false); setEditingOffer(null); setEditingInitial(null); }}
+										onSubmit={async (payload, publish) => {
+											try {
+												setOfferSubmitting(true);
+												if (!editingOffer) return;
+												const res = await fetch(buildApiUrl(`/api/offers/${editingOffer.id}/`), { method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload) });
+												const data = await res.json().catch(() => null);
+												if (!res.ok) {
+													toast({ title: 'Offer Error', description: data ? JSON.stringify(data) : 'Failed saving offer', variant: 'destructive' });
+													return;
+												}
+												toast({ title: publish ? 'Published' : 'Saved', description: 'Offer updated successfully' });
+												setShowOfferModal(false);
+												setEditingOffer(null);
+												setEditingInitial(null);
+												await fetchOffers(payload.restaurant);
+											} catch (e) {
+												console.error(e);
+												toast({ title: 'Error', description: 'Could not save offer', variant: 'destructive' });
+											} finally {
+												setOfferSubmitting(false);
+											}
+										}}
+									/>
 								)}
-								<Button onClick={submitOffer} disabled={offerSubmitting}>{offerSubmitting? 'Saving...':'Save Offer'}</Button>
-					</DialogFooter>
+							</>
+						)}
 				</DialogContent>
 			</Dialog>
 

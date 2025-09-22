@@ -1,14 +1,8 @@
 import axios from 'axios';
+import { API_BASE_SLASH, buildApiUrl } from './base-url';
 
-// Ensure the API URL is properly constructed
-const getApiUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-  const baseUrl = envUrl || 'http://localhost:8000';
-  // Ensure there's a trailing slash
-  return baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
-};
-
-const API_URL = getApiUrl();
+// Centralized API base (trailing slash variant for historic concatenations)
+const API_URL = API_BASE_SLASH;
 
 // Types for registration and user data
 export interface RegisterData {
@@ -95,9 +89,8 @@ export const register = async (userData: RegisterData): Promise<AuthResponse> =>
 
 export const login = async (username: string, password: string): Promise<AuthResponse> => {
   const fullUrl = `${API_URL}auth/login/`;
-  console.log('Environment variable NEXT_PUBLIC_BACKEND_API_URL:', process.env.NEXT_PUBLIC_BACKEND_API_URL);
-  console.log('Constructed API_URL:', API_URL);
-  console.log('Full login URL:', fullUrl);
+  console.log('[auth] Resolved API_BASE_SLASH:', API_URL);
+  console.log('[auth] Full login URL:', fullUrl);
   
   try {
     const response = await axios.post(fullUrl, {
@@ -169,7 +162,7 @@ export const fetchProtectedData = async () => {
   }
 
   try {
-    const response = await axios.get(`${API_URL}users/`, {
+  const response = await axios.get(buildApiUrl(`/users/`), {
       headers: {
         Authorization: `Token ${token}`,
       },

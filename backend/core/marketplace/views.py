@@ -4,11 +4,13 @@ from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count
-from marketplace.models import Restaurant, Offer, Booking, BookingSlot, OfferTimeSlot
+from marketplace.models import Restaurant, Offer, Booking, BookingSlot, OfferTimeSlot, BookingHold
 from users.models import User
 from marketplace.serializers import (
     RestaurantSerializer, OfferSerializer, BookingSerializer,
-    AdminRestaurantSerializer, AdminRestaurantCreateUpdateSerializer
+    AdminRestaurantSerializer, AdminRestaurantCreateUpdateSerializer,
+    FeedCardSerializer, BannerSerializer, FiltersSerializer,
+    AvailabilitySerializer, BookingHoldSerializer, BookingConfirmSerializer,
 )
 from marketplace.serializers import BookingSlotSerializer
 
@@ -114,6 +116,84 @@ class RestaurantViewSet(viewsets.ModelViewSet):
         restaurant.save(update_fields=['owner'])
         return Response({'message': 'Ownership transferred successfully.', 'restaurant_id': restaurant.id, 'new_owner_id': new_owner.id})
 
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def filters(self, request):
+        """Return facets for cities, cuisines, brands, themes, and price tiers."""
+        from django.db.models import Value as V
+        cities = list(Restaurant.objects.exclude(address__isnull=True).exclude(address='').values_list('address', flat=True).distinct()[:50])
+        cuisines = list(Restaurant.objects.exclude(cuisine_type__isnull=True).exclude(cuisine_type='').values_list('cuisine_type', flat=True).distinct())
+        brands = list(Restaurant.objects.exclude(name__isnull=True).exclude(name='').values_list('name', flat=True).distinct()[:50])
+        themes = ['Buffet', 'Rooftop', 'Family', 'Romantic', 'Vegan']
+        price_tiers = [1,2,3,4]
+        data = {
+            'cities': cities,
+            'cuisines': cuisines,
+            'brands': brands,
+            'themes': themes,
+            'price_tiers': price_tiers,
+        }
+        return Response(FiltersSerializer(data).data)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def nearby(self, request):
+        """Return active restaurants near a coordinate within a radius (km).
+
+        Query params:
+          - lat (required)
+          - lng (required)
+          - radius_km (optional, default 5)
+          - limit (optional, default 50)
+        """
+        try:
+            lat = float(request.query_params.get('lat'))
+            lng = float(request.query_params.get('lng'))
+        except (TypeError, ValueError):
+            return Response({'error': 'lat and lng are required numeric query params'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            radius_km = float(request.query_params.get('radius_km', 5))
+        except ValueError:
+            radius_km = 5.0
+        try:
+            limit = int(request.query_params.get('limit', 50))
+        except ValueError:
+            limit = 50
+
+        # crude Haversine computation in SQL via bounding box, then refine in Python
+        # bounding box first
+        import math
+        earth_radius_km = 6371.0
+        dlat = (radius_km / earth_radius_km) * (180.0 / math.pi)
+        dlng = (radius_km / earth_radius_km) * (180.0 / math.pi) / max(math.cos(math.radians(lat)), 0.0001)
+        min_lat, max_lat = lat - dlat, lat + dlat
+        min_lng, max_lng = lng - dlng, lng + dlng
+
+        candidates = Restaurant.objects.filter(
+            is_active=True,
+            latitude__isnull=False,
+            longitude__isnull=False,
+            latitude__gte=min_lat, latitude__lte=max_lat,
+            longitude__gte=min_lng, longitude__lte=max_lng,
+        )[:limit*2]
+
+        def haversine_km(lat1, lng1, lat2, lng2):
+            phi1, phi2 = math.radians(lat1), math.radians(lat2)
+            dphi = math.radians(lat2 - lat1)
+            dlambda = math.radians(lng2 - lng1)
+            a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+            return 2*earth_radius_km*math.asin(math.sqrt(a))
+
+        results = []
+        for r in candidates:
+            try:
+                dist = haversine_km(float(r.latitude), float(r.longitude), lat, lng)
+            except Exception:
+                continue
+            if dist <= radius_km:
+                results.append((dist, r))
+        results.sort(key=lambda x: x[0])
+        items = [self.get_serializer(r).data | {'distance_km': round(d, 2)} for d, r in results[:limit]]
+        return Response(items)
+
 class OfferViewSet(viewsets.ModelViewSet):
     queryset = Offer.objects.all().select_related('restaurant')
     serializer_class = OfferSerializer
@@ -153,7 +233,7 @@ class OfferViewSet(viewsets.ModelViewSet):
             raise permissions.PermissionDenied('You cannot reassign this offer to a restaurant you do not own.')
         return serializer.save()
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def timeslots(self, request):
         """Unified timeslot discounts for a restaurant and date.
 
@@ -302,6 +382,325 @@ class OfferViewSet(viewsets.ModelViewSet):
             'timeslots': timeslots,
         })
 
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def feed(self, request):
+        """Cursor-paginated offers feed aggregated as cards with slot list.
+
+        Query: city, q, cuisine, brand, theme, min_discount, time_bucket, sort, cursor
+        """
+        from django.utils import timezone
+        import base64, json, datetime as dt
+        today = timezone.localdate()
+        city = request.query_params.get('city')
+        # Automatically include empty restaurants (no active offers) for a city selection
+        include_empty = True if city else False
+        q = request.query_params.get('q')
+        cuisine = request.query_params.get('cuisine')
+        brand = request.query_params.get('brand')
+        theme = request.query_params.get('theme')
+        min_discount = request.query_params.get('min_discount')
+        time_bucket = request.query_params.get('time_bucket')
+        sort = request.query_params.get('sort', 'recommended')
+        cursor = request.query_params.get('cursor')
+        page_size = 12
+        offset = 0
+        if cursor:
+            try:
+                payload = json.loads(base64.b64decode(cursor).decode('utf-8'))
+                offset = int(payload.get('offset', 0))
+            except Exception:
+                offset = 0
+
+        # Filter active offers for today and allowed weekdays
+        weekday = today.weekday()
+        offers_qs = Offer.objects.filter(
+            is_active=True,
+            restaurant__is_active=True,
+            start_date__lte=today,
+            end_date__gte=today,
+        ).select_related('restaurant')
+
+        # Include offers that are active in the date range regardless of weekday; we'll only emit times for those allowed today.
+        offers = list(offers_qs)
+
+        from django.db.models import Q
+        qs = Offer.objects.filter(id__in=[o.id for o in offers]).select_related('restaurant')
+        # Central bounding boxes accessible for both filtering & card city detection
+        CITY_BOXES = {
+            'phnom penh': (11.35, 11.80, 104.75, 105.15),
+            'siem reap': (13.25, 13.52, 103.70, 103.97),
+            'sihanoukville': (10.50, 10.78, 103.40, 103.68),
+            'battambang': (12.95, 13.18, 103.08, 103.32),
+            'kampot': (10.50, 10.78, 104.10, 104.33),
+            'kep': (10.38, 10.56, 104.22, 104.38),
+            'kampong cham': (11.90, 12.10, 105.38, 105.54),
+            'kampong thom': (12.62, 12.78, 104.82, 104.98),
+            'poipet': (13.60, 13.72, 102.50, 102.64),
+        }
+        CITY_ALIASES = {
+            'siem riep': 'siem reap',
+            'phnompenh': 'phnom penh',
+        }
+
+        def normalize_city(value: str | None) -> str | None:
+            if not value:
+                return None
+            v = value.strip().lower()
+            return CITY_ALIASES.get(v, v)
+        # Track restaurant IDs matched by city so we can optionally include empty ones
+        city_restaurant_ids = set()
+        if city:
+            norm_city = normalize_city(city)
+            box = CITY_BOXES.get(norm_city) if norm_city else None
+            if box:
+                lat_min, lat_max, lon_min, lon_max = box
+                # Offer-level coord filter (restaurant__ prefixed)
+                offer_coord_filter = Q(restaurant__latitude__gte=lat_min) & Q(restaurant__latitude__lte=lat_max) & \
+                                      Q(restaurant__longitude__gte=lon_min) & Q(restaurant__longitude__lte=lon_max)
+                # Restaurant-level coord filter (no prefix)
+                rest_coord_filter = Q(latitude__gte=lat_min) & Q(latitude__lte=lat_max) & \
+                                     Q(longitude__gte=lon_min) & Q(longitude__lte=lon_max)
+                qs = qs.filter(offer_coord_filter | (
+                    Q(restaurant__latitude__isnull=True, restaurant__longitude__isnull=True, restaurant__address__icontains=norm_city)
+                ))
+                if include_empty:
+                    rest_q = Restaurant.objects.filter(is_active=True).filter(
+                        rest_coord_filter | Q(latitude__isnull=True, longitude__isnull=True, address__icontains=norm_city)
+                    ).values_list('id', flat=True)
+                    city_restaurant_ids.update(rest_q)
+            else:
+                # No bounding box; rely on normalized address contains
+                qs = qs.filter(restaurant__address__icontains=norm_city)
+                if include_empty:
+                    rest_q = Restaurant.objects.filter(is_active=True, address__icontains=norm_city).values_list('id', flat=True)
+                    city_restaurant_ids.update(rest_q)
+        if q:
+            qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q) | Q(restaurant__name__icontains=q))
+        if cuisine:
+            qs = qs.filter(restaurant__cuisine_type__icontains=cuisine)
+        if brand:
+            qs = qs.filter(restaurant__name__icontains=brand)
+        if theme:
+            qs = qs.filter(Q(description__icontains=theme) | Q(title__icontains=theme))
+
+        if sort == 'highest_discount':
+            qs = qs.order_by('-discount_percentage', '-discount_amount')
+        elif sort == 'most_popular':
+            qs = qs.order_by('-restaurant__rating', '-restaurant__created_at')
+        elif sort == 'nearest_time':
+            qs = qs.order_by('start_time')
+        else:
+            qs = qs.order_by('-is_featured', '-restaurant__rating', '-created_at')
+
+        cards = []
+        now = timezone.localtime()
+
+        # Cache merged slots per restaurant to avoid recomputing for multiple offers of same restaurant
+        merged_slots_cache: dict[int, list[dict]] = {}
+
+        cards_emitted = 0
+        for off in qs[offset: offset + page_size]:
+            rest = off.restaurant
+            # If already computed for this restaurant, reuse
+            if rest.id in merged_slots_cache:
+                slot_items = merged_slots_cache[rest.id]
+            else:
+                # Build a unified slot list across ALL active offers for this restaurant (today + weekday)
+                # 1) Gather all relevant offers for this restaurant from the pre-filtered list
+                rest_offers = [o for o in offers if o.restaurant_id == rest.id]
+
+                # Helper: compute percentage
+                def pct_from_any(offr, ts=None):
+                    if ts is not None:
+                        if ts.discount_percentage is not None:
+                            try:
+                                return int(float(ts.discount_percentage))
+                            except Exception:
+                                return 0
+                        if ts.discount_amount is not None and offr.original_price:
+                            try:
+                                val = (float(ts.discount_amount) / float(offr.original_price)) * 100.0
+                                return max(0, min(100, int(round(val))))
+                            except Exception:
+                                return 0
+                    if offr.discount_percentage is not None:
+                        try:
+                            return int(float(offr.discount_percentage))
+                        except Exception:
+                            return 0
+                    return 0
+
+                # 2) Merge by time using highest discount
+                merged_by_time: dict[str, dict] = {}
+                for ro in rest_offers:
+                    # Skip timeslot generation if this offer is not allowed today by its days_of_week constraint.
+                    allowed_today = True
+                    if ro.days_of_week:
+                        try:
+                            allowed_days = [int(d.strip()) for d in ro.days_of_week.split(',') if d.strip().isdigit()]
+                            allowed_today = (weekday in allowed_days)
+                        except Exception:
+                            allowed_today = True
+                    if not allowed_today:
+                        continue
+
+                    ro_ts = OfferTimeSlot.objects.filter(offer=ro, is_active=True).order_by('start_time')
+                    if ro_ts.exists():
+                        for ts in ro_ts:
+                            time_str = ts.start_time.strftime('%H:%M')
+                            # Skip past times today
+                            if today == now.date() and (ts.start_time.hour * 60 + ts.start_time.minute) <= (now.hour * 60 + now.minute):
+                                continue
+                            disc = pct_from_any(ro, ts)
+                            if min_discount and disc < int(min_discount):
+                                continue
+                            cur = merged_by_time.get(time_str)
+                            if not cur or disc > cur['discount']:
+                                merged_by_time[time_str] = {'time': time_str, 'discount': disc}
+                    else:
+                        # Fall back to the offer's time window on a 30-minute grid
+                        cur_dt = dt.datetime.combine(today, ro.start_time)
+                        end_dt = dt.datetime.combine(today, ro.end_time)
+                        while cur_dt < end_dt:
+                            time_str = cur_dt.strftime('%H:%M')
+                            if today == now.date() and (cur_dt.time().hour * 60 + cur_dt.time().minute) <= (now.hour * 60 + now.minute):
+                                cur_dt += dt.timedelta(minutes=30)
+                                continue
+                            disc = pct_from_any(ro)
+                            if min_discount and disc < int(min_discount):
+                                cur_dt += dt.timedelta(minutes=30)
+                                continue
+                            cur = merged_by_time.get(time_str)
+                            if not cur or disc > cur['discount']:
+                                merged_by_time[time_str] = {'time': time_str, 'discount': disc}
+                            cur_dt += dt.timedelta(minutes=30)
+
+                # 3) Attach real slot info where available; else synthetic ids
+                slot_items = []
+                for time_str, info in sorted(merged_by_time.items(), key=lambda kv: kv[0]):
+                    hh, mm = map(int, time_str.split(':'))
+                    try:
+                        bslot = BookingSlot.objects.filter(restaurant=rest, date=today, start_time=dt.time(hh, mm)).first()
+                    except Exception:
+                        bslot = None
+                    disc = info['discount']
+                    if bslot:
+                        status_eff = bslot.effective_status()
+                        rem = bslot.remaining_capacity
+                        # Note: we show all open slots, even if capacity is low, client can re-check on booking page
+                        if status_eff != 'open':
+                            continue
+                        cap = rem if rem is not None else 99
+                        slot_items.append({'slot_id': str(bslot.id), 'time': time_str, 'discount': disc, 'capacity': cap})
+                    else:
+                        # This is a synthetic slot, it has no real BookingSlot yet.
+                        # The frontend should treat it as a non-bookable offer time.
+                        slot_items.append({'slot_id': None, 'time': time_str, 'discount': disc, 'capacity': 99})
+
+                # 4) Optional time bucket filtering
+                if time_bucket in ('lunch', 'afternoon', 'dinner', 'late'):
+                    def bucket(h: int):
+                        return 'lunch' if 11 <= h < 14 else 'afternoon' if 14 <= h < 17 else 'dinner' if 17 <= h < 21 else 'late'
+                    slot_items = [s for s in slot_items if bucket(int(s['time'][:2])) == time_bucket]
+
+                merged_slots_cache[rest.id] = slot_items
+
+            # Determine city for card: prefer bounding box mapping over address suffix
+            detected_city = ''
+            if getattr(rest, 'latitude', None) is not None and getattr(rest, 'longitude', None) is not None:
+                lat = float(rest.latitude)
+                lon = float(rest.longitude)
+                for cname, (la_min, la_max, lo_min, lo_max) in CITY_BOXES.items():  # type: ignore
+                    if la_min <= lat <= la_max and lo_min <= lon <= lo_max:
+                        detected_city = cname.title()
+                        break
+            if not detected_city and getattr(rest, 'address', None):
+                if ',' in rest.address:
+                    detected_city = rest.address.split(',')[-1].strip().title()
+                else:
+                    detected_city = rest.address.strip().title()
+
+            card = {
+                'offer_id': str(off.id),
+                'restaurant_id': str(rest.id),
+                'name': rest.name,
+                'city': detected_city,
+                'image_url': (rest.image_file.url if getattr(rest, 'image_file', None) else (rest.image_url or '')),
+                'rating': float(rest.rating or 0),
+                'reservations_count': rest.bookings.count(),
+                'price_tier': int(rest.price_range or 2),
+                'badges': [b for b in (['Hot'] if rest.is_featured else []) + (['New'] if (rest.created_at and (timezone.now() - rest.created_at).days <= 30) else [])],
+                'slots': slot_items,
+            }
+            cards.append(card)
+            cards_emitted += 1
+
+        # If we have a city filter, include_empty flag, and we emitted nothing (or fewer than page size) add placeholder cards for restaurants with no active offers
+        if city and include_empty and cards_emitted < page_size:
+            remaining = page_size - cards_emitted
+            extra_ids = [rid for rid in city_restaurant_ids if rid not in [c['restaurant_id'] for c in cards]][:remaining]
+            if extra_ids:
+                extra_restaurants = Restaurant.objects.filter(id__in=extra_ids)
+                for rest in extra_restaurants:
+                    # Determine city same way as above
+                    detected_city = ''
+                    if getattr(rest, 'latitude', None) is not None and getattr(rest, 'longitude', None) is not None:
+                        lat = float(rest.latitude)
+                        lon = float(rest.longitude)
+                        for cname, (la_min, la_max, lo_min, lo_max) in CITY_BOXES.items():  # type: ignore
+                            if la_min <= lat <= la_max and lo_min <= lon <= lo_max:
+                                detected_city = cname.title()
+                                break
+                    if not detected_city and getattr(rest, 'address', None):
+                        if ',' in rest.address:
+                            detected_city = rest.address.split(',')[-1].strip().title()
+                        else:
+                            detected_city = rest.address.strip().title()
+                    cards.append({
+                        'offer_id': '',
+                        'restaurant_id': str(rest.id),
+                        'name': rest.name,
+                        'city': detected_city,
+                        'image_url': (rest.image_file.url if getattr(rest, 'image_file', None) else (rest.image_url or '')),
+                        'rating': float(rest.rating or 0),
+                        'reservations_count': rest.bookings.count(),
+                        'price_tier': int(rest.price_range or 2),
+                        'badges': [b for b in (['Hot'] if rest.is_featured else []) + (['New'] if (rest.created_at and (timezone.now() - rest.created_at).days <= 30) else [])],
+                        'slots': [],
+                    })
+                    cards_emitted += 1
+                    if cards_emitted >= page_size:
+                        break
+
+        next_cursor = None
+        # Adjust total to include extra restaurants if include_empty
+        total = qs.count()
+        if city and include_empty:
+            total = max(total, len(city_restaurant_ids))
+        if total > offset + page_size:
+            next_cursor = base64.b64encode(json.dumps({'offset': offset + page_size}).encode('utf-8')).decode('utf-8')
+
+        return Response({'results': FeedCardSerializer(cards, many=True).data, 'next_cursor': next_cursor})
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
+    def banners(self, request):
+        from django.utils import timezone
+        now = timezone.now()
+        items = []
+        featured = Offer.objects.filter(is_active=True, is_featured=True).select_related('restaurant')[:3]
+        for i, o in enumerate(featured, start=1):
+            items.append({
+                'id': f'b{i}',
+                'image_url': (o.restaurant.image_file.url if getattr(o.restaurant, 'image_file', None) else (o.restaurant.image_url or '')),
+                'headline': o.title,
+                'subtext': (o.description or '')[:80],
+                'cta_label': 'Reserve now',
+                'cta_href': f"/restaurants/{o.restaurant.id}",
+                'active_from': now,
+                'active_to': now,
+            })
+        return Response(BannerSerializer(items, many=True).data)
+
     @action(detail=False, methods=['get'])
     def hourly_offers(self, request):
         """Return a 24-slot hourly offer map for a restaurant and optional date.
@@ -377,6 +776,7 @@ class OfferViewSet(viewsets.ModelViewSet):
         
         active_offers = self.queryset.filter(
             is_active=True,
+            restaurant__is_active=True,
             start_date__lte=today,
             end_date__gte=today
         )
@@ -402,6 +802,110 @@ class OfferViewSet(viewsets.ModelViewSet):
         featured = self.queryset.filter(is_featured=True, is_active=True)
         serializer = self.get_serializer(featured, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def materialize_slot(self, request):
+        """Create or return a live BookingSlot for a given restaurant/date/time if an active offer covers it.
+
+        Payload: { restaurant: id, date: YYYY-MM-DD, time: HH:MM, capacity?: int, min_party_size?: int, max_party_size?: int }
+        Rules:
+        - Only allowed when there is at least one active Offer (date range + weekday) for that restaurant that includes the requested time,
+          via either an OfferTimeSlot at that exact minute or within its offer window.
+        - Creates a 30-minute BookingSlot [time, time+30m] if not exists. Returns the existing slot if already present.
+        - Sets discount_percentage to the highest applicable discount among matching offers.
+        """
+        from django.utils import timezone
+        import datetime as dt
+
+        rid = request.data.get('restaurant')
+        date_str = request.data.get('date')
+        time_str = request.data.get('time')
+        if not (rid and date_str and time_str):
+            return Response({'error': 'restaurant, date, and time are required'}, status=400)
+        try:
+            restaurant = Restaurant.objects.get(id=int(rid))
+        except (ValueError, Restaurant.DoesNotExist):
+            return Response({'error': 'Restaurant not found'}, status=404)
+        try:
+            target_date = dt.date.fromisoformat(str(date_str))
+            hh, mm = map(int, str(time_str).split(':')[:2])
+            start_time = dt.time(hh, mm)
+            end_dt = (dt.datetime.combine(target_date, start_time) + dt.timedelta(minutes=30))
+            end_time = end_dt.time()
+        except Exception:
+            return Response({'error': 'Invalid date or time format'}, status=400)
+
+        # Validate there is an active offer covering this date & time
+        weekday = target_date.weekday()
+        offers_qs = Offer.objects.filter(
+            restaurant=restaurant,
+            is_active=True,
+            start_date__lte=target_date,
+            end_date__gte=target_date,
+        )
+        applicable = []
+        for off in offers_qs:
+            if off.days_of_week:
+                allowed = [int(d.strip()) for d in off.days_of_week.split(',') if d.strip().isdigit()]
+                if weekday not in allowed:
+                    continue
+            # match by explicit OfferTimeSlot or within offer window
+            has_ts = OfferTimeSlot.objects.filter(offer=off, is_active=True, start_time=start_time).exists()
+            in_window = False
+            try:
+                in_window = off.start_time <= start_time < off.end_time
+            except Exception:
+                in_window = False
+            if has_ts or in_window:
+                applicable.append(off)
+
+        if not applicable:
+            return Response({'error': 'No active offer covers this time'}, status=409)
+
+        # Compute highest discount among applicable offers at that time
+        def pct_for(off: Offer, st: dt.time):
+            ts = OfferTimeSlot.objects.filter(offer=off, is_active=True, start_time=st).first()
+            if ts and ts.discount_percentage is not None:
+                try:
+                    return float(ts.discount_percentage)
+                except Exception:
+                    return 0.0
+            if ts and ts.discount_amount is not None and off.original_price:
+                try:
+                    return max(0.0, min(100.0, float(ts.discount_amount) / float(off.original_price) * 100.0))
+                except Exception:
+                    return 0.0
+            if off.discount_percentage is not None:
+                try:
+                    return float(off.discount_percentage)
+                except Exception:
+                    return 0.0
+            return 0.0
+
+        best_pct = 0.0
+        for off in applicable:
+            best_pct = max(best_pct, pct_for(off, start_time))
+
+        # Get or create the BookingSlot
+        slot = BookingSlot.objects.filter(restaurant=restaurant, date=target_date, start_time=start_time).first()
+        if not slot:
+            capacity = int(request.data.get('capacity') or 0)  # 0 = unlimited
+            min_party = int(request.data.get('min_party_size') or 1)
+            max_party = int(request.data.get('max_party_size') or 20)
+            slot = BookingSlot.objects.create(
+                restaurant=restaurant,
+                date=target_date,
+                start_time=start_time,
+                end_time=end_time,
+                discount_percentage=best_pct if best_pct > 0 else None,
+                capacity=capacity,
+                min_party_size=min_party,
+                max_party_size=max_party,
+                status='open',
+                is_active=True,
+            )
+        data = BookingSlotSerializer(slot, context={'request': request}).data
+        return Response(data, status=201)
 
     @action(detail=False, methods=['get'])
     def by_restaurant(self, request):
@@ -769,6 +1273,27 @@ class BookingSlotAvailabilityViewSet(viewsets.ReadOnlyModelViewSet):
         # Optionally could fill missing granular slots here.
         return Response({'slots': data, 'restaurant_id': int(restaurant_id), 'date': target_date.isoformat(), 'granularity': granularity})
 
+from rest_framework.views import APIView
+
+class AvailabilityView(APIView):
+    """GET /api/availability/?slot_id=…&party_size=…"""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        slot_id = request.query_params.get('slot_id')
+        party_size = int(request.query_params.get('party_size', '1'))
+        if not slot_id:
+            return Response({'error': 'slot_id required'}, status=400)
+        try:
+            slot = BookingSlot.objects.get(id=int(slot_id))
+        except (ValueError, BookingSlot.DoesNotExist):
+            return Response({'available': False, 'remaining': 0})
+        status_eff = slot.effective_status()
+        rem = slot.remaining_capacity
+        avail = status_eff == 'open' and (rem is None or rem >= party_size)
+        remaining = (rem if rem is not None else 99)
+        return Response(AvailabilitySerializer({'available': avail, 'remaining': remaining}).data)
+
 class BookingSlotViewSet(viewsets.ModelViewSet):
     """CRUD for BookingSlots (restaurant owner for own restaurants or admin)."""
     queryset = BookingSlot.objects.select_related('restaurant')
@@ -801,6 +1326,121 @@ class BookingSlotViewSet(viewsets.ModelViewSet):
         if not (getattr(user,'user_type','') == 'admin' or user.is_staff or instance.restaurant.owner_id == user.id):
             raise serializers.ValidationError({'permission':'Not allowed to delete slot'})
         return super().perform_destroy(instance)
+
+
+class BookingHoldViewSet(viewsets.ModelViewSet):
+    """Create/Destroy booking holds. Lookup by hold_id to match API spec."""
+    queryset = BookingHold.objects.select_related('slot')
+    serializer_class = BookingHoldSerializer
+    http_method_names = ['post', 'delete']
+    lookup_field = 'hold_id'
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []  # avoid SessionAuthentication CSRF for public POST
+
+    def create(self, request, *args, **kwargs):
+        from django.utils import timezone
+        from django.db import transaction
+        slot_id = request.data.get('slot_id')
+        party_size = int(request.data.get('party_size') or 1)
+        contact = request.data.get('contact') or {}
+        if not slot_id:
+            return Response({'error': 'slot_id required'}, status=400)
+        try:
+            with transaction.atomic():
+                slot = BookingSlot.objects.select_for_update().get(id=int(slot_id))
+                status_eff = slot.effective_status()
+                rem = slot.remaining_capacity
+                if status_eff != 'open' or (rem is not None and rem < party_size):
+                    return Response({'error': 'Slot not available'}, status=409)
+                import secrets
+                hold_id = secrets.token_urlsafe(8)
+                expires_at = timezone.now() + timezone.timedelta(minutes=10)
+                hold = BookingHold.objects.create(
+                    hold_id=hold_id, slot=slot, party_size=party_size, contact=contact, expires_at=expires_at, status='active'
+                )
+        except (ValueError, BookingSlot.DoesNotExist):
+            return Response({'error': 'slot not found'}, status=404)
+        # Basic price calc if slot or offer discount exists is out of scope; return placeholder price fields
+        price = {'original': 0.0, 'discount': 0.0, 'final': 0.0}
+        data = {'hold_id': hold.hold_id, 'expires_at': hold.expires_at, 'price': price}
+        return Response(data, status=201)
+
+    def destroy(self, request, *args, **kwargs):
+        hold = self.get_object()
+        hold.status = 'released'
+        hold.save(update_fields=['status'])
+        return Response(status=204)
+
+
+class BookingConfirmView(APIView):
+    """POST /api/bookings/confirm/ with hold_id to finalize booking.
+
+    Note: We previously disabled all authentication classes here to avoid CSRF issues
+    with SessionAuthentication for anonymous bookings. That prevented TokenAuthentication
+    from running, so even authenticated users (sending an Authorization header) were
+    treated as Anonymous and the resulting Booking.diner field was left null. Those
+    bookings then failed to appear in the user's /api/bookings/ list (which filters
+    by diner=request.user for normal diners).
+
+    Fix: Re-enable token authentication only (no SessionAuthentication) so supplying
+    a token links the booking to the diner while still allowing anonymous bookings
+    (permission_classes = AllowAny). Anonymous users can still confirm; authenticated
+    users will now see their confirmed bookings under "Upcoming".
+    """
+    from rest_framework.authentication import TokenAuthentication  # local import to avoid top churn
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = [TokenAuthentication]  # allow token-based user association without CSRF hassles
+
+    def post(self, request):
+        from django.utils import timezone
+        hold_id = request.data.get('hold_id')
+        if not hold_id:
+            return Response({'error': 'hold_id required'}, status=400)
+        try:
+            hold = BookingHold.objects.select_related('slot').get(hold_id=hold_id)
+        except BookingHold.DoesNotExist:
+            return Response({'error': 'Hold not found'}, status=404)
+        # Validate not expired
+        if hold.status != 'active' or hold.expires_at <= timezone.now():
+            return Response({'error': 'Hold expired or invalid'}, status=409)
+        # Create a Booking record (anonymous diner allowed -> no diner linkage)
+        slot = hold.slot
+        # Generate a code
+        import secrets
+        code = secrets.token_hex(2).upper() + '-' + secrets.token_hex(2).upper()
+        from django.db import IntegrityError
+        try:
+            b = Booking.objects.create(
+                diner=request.user if request.user.is_authenticated else None,  # type: ignore
+                restaurant=slot.restaurant,
+                slot=slot,
+                booking_time=timezone.make_aware(timezone.datetime.combine(slot.date, slot.start_time), timezone.get_current_timezone()),
+                number_of_people=hold.party_size,
+                status='confirmed'
+            )
+        except IntegrityError as e:
+            # Likely due to diner field being non-nullable in DB. Surface a helpful message.
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"IntegrityError creating booking for hold {hold_id}: {e}")
+            return Response({'error': 'Booking could not be confirmed due to server configuration. Please run database migrations to allow guest bookings (make Booking.diner nullable).', 'detail': str(e)}, status=500)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Unexpected error creating booking for hold {hold_id}: {e}")
+            return Response({'error': 'Unexpected error during booking confirmation.', 'detail': str(e)}, status=500)
+        # Attach booking reference into hold.contact so downstream serializers can surface contact details
+        contact = hold.contact or {}
+        try:
+            # avoid mutating original dict if it's shared
+            contact = dict(contact)
+        except Exception:
+            pass
+        contact['booking_id'] = b.id
+        hold.contact = contact
+        hold.status = 'confirmed'
+        hold.save(update_fields=['status', 'contact'])
+        return Response({'booking_id': str(b.id), 'code': code, 'status': 'confirmed'})
 
 # Admin-specific views
 class AdminRestaurantViewSet(viewsets.ModelViewSet):
@@ -964,3 +1604,59 @@ class AdminRestaurantViewSet(viewsets.ModelViewSet):
             )
         
         return Response({'message': message})
+
+
+class AdminOfferViewSet(viewsets.ModelViewSet):
+    """
+    Admin-only CRUD for offers. Staff can create, edit, and delete offers for any restaurant.
+    """
+    queryset = Offer.objects.all().select_related('restaurant')
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+    serializer_class = OfferSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ['title', 'description', 'restaurant__name']
+    filterset_fields = ['restaurant', 'offer_type', 'is_active', 'is_featured', 'recurring']
+    ordering_fields = ['created_at', 'updated_at', 'start_date', 'end_date', 'discount_percentage', 'discount_amount']
+    ordering = ['-created_at']
+
+    @action(detail=False, methods=['get'])
+    def by_restaurant(self, request):
+        """List offers for a specific restaurant id."""
+        restaurant_id = request.query_params.get('restaurant')
+        if not restaurant_id:
+            return Response({'error': 'restaurant query param required'}, status=status.HTTP_400_BAD_REQUEST)
+        qs = self.queryset.filter(restaurant_id=restaurant_id)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            ser = self.get_serializer(page, many=True)
+            return self.get_paginated_response(ser.data)
+        ser = self.get_serializer(qs, many=True)
+        return Response(ser.data)
+
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        """Admin bulk actions on offers (activate/deactivate/feature/unfeature/delete)."""
+        action_type = request.data.get('action')
+        offer_ids = request.data.get('offer_ids', [])
+        if not action_type or not offer_ids:
+            return Response({'error': 'action and offer_ids are required'}, status=status.HTTP_400_BAD_REQUEST)
+        offers = Offer.objects.filter(id__in=offer_ids)
+        if action_type == 'activate':
+            offers.update(is_active=True)
+            msg = f"{offers.count()} offers activated"
+        elif action_type == 'deactivate':
+            offers.update(is_active=False)
+            msg = f"{offers.count()} offers deactivated"
+        elif action_type == 'feature':
+            offers.update(is_featured=True)
+            msg = f"{offers.count()} offers featured"
+        elif action_type == 'unfeature':
+            offers.update(is_featured=False)
+            msg = f"{offers.count()} offers unfeatured"
+        elif action_type == 'delete':
+            count = offers.count()
+            offers.delete()
+            msg = f"{count} offers deleted"
+        else:
+            return Response({'error': 'Invalid action'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': msg})

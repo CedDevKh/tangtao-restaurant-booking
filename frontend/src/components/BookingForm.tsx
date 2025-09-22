@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { buildApiUrl } from "@/lib/base-url";
 import { createBooking } from "@/lib/booking-api";
 import { Button } from "@/components/ui/button";
 
@@ -25,8 +26,7 @@ export default function BookingForm({ restaurantId, offerId }: BookingFormProps)
   useEffect(() => {
   async function fetchOffers() {
       try {
-  const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000');
-        const res = await axios.get(`${API_URL}/api/offers/?restaurant=${restaurantId}`);
+  const res = await axios.get(buildApiUrl(`/api/offers/?restaurant=${restaurantId}`));
         const offerList = res.data.results || res.data || [];
         setOffers(offerList);
         
@@ -57,8 +57,7 @@ export default function BookingForm({ restaurantId, offerId }: BookingFormProps)
     async function fetchSlots() {
       if (!date) return;
       try {
-  const API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000');
-        const res = await axios.get(`${API_URL}/api/slots/availability/?restaurant=${restaurantId}&date=${date}&party_size=${guests}`);
+  const res = await axios.get(buildApiUrl(`/api/slots/availability/?restaurant=${restaurantId}&date=${date}&party_size=${guests}`));
         const list = res.data.slots || [];
         setSlots(list);
       } catch (e) {

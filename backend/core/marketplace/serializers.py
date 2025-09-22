@@ -1,32 +1,48 @@
 from rest_framework import serializers
-from marketplace.models import Restaurant, Offer, Booking, BookingSlot, OfferTimeSlot
+from marketplace.models import Restaurant, Offer, Booking, BookingSlot, OfferTimeSlot, BookingHold
 from users.serializers import UserSerializer
 
 class RestaurantSerializer(serializers.ModelSerializer):
     owner = UserSerializer(read_only=True)
     active_offers = serializers.SerializerMethodField()
     featured_offer = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Restaurant
         fields = '__all__'
+
+    def get_cover_image_url(self, obj):
+        """Return absolute URL for restaurant image if possible.
+        Uses image_url text field which may already be absolute/relative.
+        If relative (starts with /), prefix with current request scheme+host.
+        """
+        raw = getattr(obj, 'image_url', None)
+        if not raw:
+            return None
+        # Already absolute
+        if isinstance(raw, str) and raw.startswith(('http://', 'https://')):
+            return raw
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        if request and isinstance(raw, str):
+            # Ensure leading slash
+            path = raw if raw.startswith('/') else f'/{raw}'
+            return request.build_absolute_uri(path)
+        return raw
 
     def validate_image_url(self, value):
         # Optionally, add custom validation for URLs if needed
         return value
 
     def get_active_offers(self, obj):
-        """Get all currently active offers for this restaurant"""
+        """Get all offers active for today (date range and optional day-of-week)."""
         from django.utils import timezone
         today = timezone.now().date()
-        current_time = timezone.now().time()
         
         active_offers = obj.offers.filter(
             is_active=True,
             start_date__lte=today,
             end_date__gte=today,
-            start_time__lte=current_time,
-            end_time__gte=current_time
         )
         
         # Further filter by day of week if specified
@@ -44,11 +60,10 @@ class RestaurantSerializer(serializers.ModelSerializer):
         return OfferSerializer(filtered_offers, many=True, context=self.context).data
 
     def get_featured_offer(self, obj):
-        """Get the best/featured offer for this restaurant"""
+        """Pick the best offer available today by date range/day-of-week, not exact time window."""
         from django.utils import timezone
         today = timezone.now().date()
         
-        # Get the best current offer (highest discount percentage or featured)
         best_offer = obj.offers.filter(
             is_active=True,
             start_date__lte=today,
@@ -120,17 +135,14 @@ class OfferSerializer(serializers.ModelSerializer):
             if data['start_date'] > data['end_date']:
                 raise serializers.ValidationError("Start date cannot be after end date")
         
-        # Enforce single-hour slot (minute precision 00 and exactly +1 hour)
+        # Flexible duration: only require end_time > start_time on the same day
         if data.get('start_time') and data.get('end_time'):
             start = data['start_time']
             end = data['end_time']
-            if start.minute != 0 or end.minute != 0:
-                raise serializers.ValidationError("Offers must start and end on the hour (minutes = 00)")
-            # Accept exactly one-hour duration
             start_total = start.hour * 60 + start.minute
             end_total = end.hour * 60 + end.minute
-            if end_total - start_total != 60:
-                raise serializers.ValidationError("Offers must cover exactly one hour (end_time = start_time + 1 hour)")
+            if end_total <= start_total:
+                raise serializers.ValidationError("end_time must be after start_time")
         
         # Validate discount percentage range
         if data.get('discount_percentage') and (data['discount_percentage'] < 0 or data['discount_percentage'] > 100):
@@ -159,12 +171,10 @@ class OfferSerializer(serializers.ModelSerializer):
         import datetime
         for s in slots:
             st = datetime.time.fromisoformat((s.get('start_time') or '00:00'))
-            et = datetime.time.fromisoformat((s.get('end_time') or '00:30'))
-            if st.minute not in (0,30) or et.minute not in (0,30):
-                raise serializers.ValidationError({'time_slots': 'Minutes must be 00 or 30'})
+            et = datetime.time.fromisoformat((s.get('end_time') or '00:00'))
             dur = et.hour*60+et.minute - (st.hour*60+st.minute)
-            if dur != 30:
-                raise serializers.ValidationError({'time_slots': 'Each slot must be exactly 30 minutes'})
+            if dur <= 0:
+                raise serializers.ValidationError({'time_slots': 'Each slot must have end_time after start_time'})
             OfferTimeSlot.objects.create(
                 offer=offer,
                 restaurant=offer.restaurant,
@@ -188,6 +198,59 @@ class OfferSerializer(serializers.ModelSerializer):
         if slots is not None:
             self._upsert_time_slots(offer, slots)
         return offer
+
+
+# Feed and related lightweight serializers
+class SlotSerializer(serializers.Serializer):
+    slot_id = serializers.CharField()
+    time = serializers.CharField()
+    discount = serializers.IntegerField()
+    capacity = serializers.IntegerField()
+
+class FeedCardSerializer(serializers.Serializer):
+    offer_id = serializers.CharField()
+    restaurant_id = serializers.CharField()
+    name = serializers.CharField()
+    city = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    image_url = serializers.CharField(allow_blank=True, allow_null=True)
+    rating = serializers.FloatField(required=False, default=0)
+    reservations_count = serializers.IntegerField(required=False, default=0)
+    price_tier = serializers.IntegerField(required=False, default=2)
+    badges = serializers.ListField(child=serializers.CharField(), required=False)
+    slots = SlotSerializer(many=True)
+
+class BannerSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    image_url = serializers.CharField()
+    headline = serializers.CharField()
+    subtext = serializers.CharField(allow_blank=True, required=False)
+    cta_label = serializers.CharField()
+    cta_href = serializers.CharField()
+    active_from = serializers.DateTimeField()
+    active_to = serializers.DateTimeField()
+
+class FiltersSerializer(serializers.Serializer):
+    cities = serializers.ListField(child=serializers.CharField())
+    cuisines = serializers.ListField(child=serializers.CharField())
+    brands = serializers.ListField(child=serializers.CharField())
+    themes = serializers.ListField(child=serializers.CharField())
+    price_tiers = serializers.ListField(child=serializers.IntegerField())
+
+class AvailabilitySerializer(serializers.Serializer):
+    available = serializers.BooleanField()
+    remaining = serializers.IntegerField()
+
+class BookingHoldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookingHold
+        fields = ['hold_id','expires_at','slot','party_size','contact','status']
+        read_only_fields = ['status']
+
+class BookingConfirmSerializer(serializers.Serializer):
+    hold_id = serializers.CharField()
+    booking_id = serializers.CharField(required=False)
+    code = serializers.CharField(required=False)
+    status = serializers.CharField(required=False)
 
 class BookingSlotSerializer(serializers.ModelSerializer):
     remaining_capacity = serializers.SerializerMethodField()
@@ -229,6 +292,24 @@ class BookingSerializer(serializers.ModelSerializer):
         elif obj.offer and obj.offer.restaurant:
             return obj.offer.restaurant.name
         return None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Inject contact details captured on hold confirmation matching this booking
+        try:
+            holds = BookingHold.objects.filter(slot=instance.slot, status='confirmed').order_by('-updated_at')
+            contact_data = None
+            for h in holds:
+                if isinstance(h.contact, dict) and (h.contact.get('booking_id') == instance.id or 'booking_id' not in h.contact):
+                    contact_data = {k: h.contact.get(k) for k in ['name','email','phone'] if h.contact.get(k)}
+                    # Prefer the one explicitly linked via booking_id
+                    if h.contact.get('booking_id') == instance.id:
+                        break
+            if contact_data:
+                data['contact'] = contact_data
+        except Exception:
+            pass
+        return data
 
     def validate(self, data):
         if not data.get('offer') and not data.get('restaurant'):
@@ -294,6 +375,7 @@ class AdminRestaurantSerializer(serializers.ModelSerializer):
     owner_email = serializers.CharField(source='owner.email', read_only=True)
     total_offers = serializers.SerializerMethodField()
     total_bookings = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Restaurant
@@ -318,8 +400,21 @@ class AdminRestaurantSerializer(serializers.ModelSerializer):
             Q(offer__restaurant=obj) | Q(restaurant=obj)
         ).count()
 
+    def get_cover_image_url(self, obj):
+        raw = getattr(obj, 'image_url', None)
+        if not raw:
+            return None
+        if isinstance(raw, str) and raw.startswith(('http://', 'https://')):
+            return raw
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        if request and isinstance(raw, str):
+            path = raw if raw.startswith('/') else f'/{raw}'
+            return request.build_absolute_uri(path)
+        return raw
+
 class AdminRestaurantCreateUpdateSerializer(serializers.ModelSerializer):
-    owner_id = serializers.IntegerField(write_only=True, required=False)
+    # Allow updates without providing or changing the owner. Frontend may send null.
+    owner_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     owner = serializers.PrimaryKeyRelatedField(read_only=True)
     
     class Meta:
@@ -337,6 +432,9 @@ class AdminRestaurantCreateUpdateSerializer(serializers.ModelSerializer):
     
     def validate_owner_id(self, value):
         from users.models import User
+        # Permit null/omitted owner_id (no reassignment). Only validate when provided.
+        if value is None:
+            return value
         if value and not User.objects.filter(id=value).exists():
             raise serializers.ValidationError("Owner with this ID does not exist.")
         return value

@@ -40,7 +40,12 @@ SECRET_KEY = env('SECRET_KEY', default='django-insecure-ihbjn@u6ypp8j8gtsm^yu)_(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG', default=True)
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', '192.168.0.127'])
+# Hosts
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+
+# In development, allow all hosts so the site works across changing LAN IPs
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
 
 # Production settings
 if not DEBUG:
@@ -60,19 +65,11 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all origins in development
 CORS_ALLOW_CREDENTIALS = True
 
 if DEBUG:
-    # Extended for LAN device testing (add your machine's LAN IP here)
     CORS_ALLOWED_ORIGINS = [
-        # Localhost
         "http://localhost:3000",
         "http://localhost:9003",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:9003",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        # LAN IP (frontend dev server / backend direct access)
-        "http://192.168.0.127:3000",
-        "http://192.168.0.127:8000",
-    "http://192.168.0.127:9003",
     ]
 else:
     # Production origins will be set via environment variable
@@ -88,17 +85,6 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
-]
-
-# CSRF trusted origins (needed for POST/PUT from these hosts in Django 4+)
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://192.168.0.127:3000",
-    "http://192.168.0.127:8000",
-    "http://192.168.0.127:9003",
 ]
 
 
@@ -258,6 +244,9 @@ CACHES = {
         }
     }
 }
+
+# Feature flags
+PURGE_EXPIRED_OFFERS_ON_START = env.bool('PURGE_EXPIRED_OFFERS_ON_START', default=True)
 
 # Security settings for production
 SECURE_BROWSER_XSS_FILTER = True

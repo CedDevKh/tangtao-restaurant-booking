@@ -21,18 +21,22 @@
       const theme = getTheme();
       const root = document.documentElement;
       
-      // Remove existing theme classes
-      root.classList.remove('light', 'dark');
+  // Remove existing theme classes
+  root.classList.remove('light', 'dark');
+  root.removeAttribute('data-theme');
       
       if (theme === 'system') {
         const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
         if (isDark) {
           root.classList.add('dark');
+          root.setAttribute('data-theme','dark');
         } else {
           root.classList.add('light');
+          root.setAttribute('data-theme','light');
         }
       } else {
         root.classList.add(theme);
+        root.setAttribute('data-theme', theme);
       }
     };
 

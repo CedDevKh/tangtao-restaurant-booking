@@ -43,58 +43,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  const getTheme = () => {
-                    if (typeof window === 'undefined') return 'system';
-                    
-                    try {
-                      const stored = localStorage.getItem('theme');
-                      if (stored && ['light', 'dark', 'system'].includes(stored)) {
-                        return stored;
-                      }
-                    } catch (e) {
-                      // localStorage might not be available
-                    }
-                    return 'system';
-                  };
-
-                  const applyTheme = () => {
-                    if (typeof window === 'undefined' || !document.documentElement) return;
-                    
-                    const theme = getTheme();
-                    const root = document.documentElement;
-                    
-                    // Remove existing theme classes
-                    root.classList.remove('light', 'dark');
-                    
-                    if (theme === 'system') {
-                      const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                      if (isDark) {
-                        root.classList.add('dark');
-                      } else {
-                        root.classList.add('light');
-                      }
-                    } else {
-                      root.classList.add(theme);
-                    }
-                  };
-
-                  // Apply theme immediately
-                  applyTheme();
-                } catch (error) {
-                  // Fallback to light theme if anything goes wrong
-                  if (typeof document !== 'undefined' && document.documentElement) {
-                    document.documentElement.classList.add('light');
-                  }
-                }
-              })();
-            `,
-          }}
-        />
+  {/* Load theme-init early to avoid FOUC and reflect user/system theme before paint */}
+  <script src="/theme-init.js" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />

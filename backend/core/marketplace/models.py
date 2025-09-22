@@ -30,7 +30,7 @@ class Restaurant(models.Model):
         (4, '$$$$'),
     )
 
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='restaurants')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='restaurants')
     name = models.CharField(max_length=255)
     address = models.TextField()
     phone_number = models.CharField(max_length=20, blank=True, null=True)
@@ -42,8 +42,13 @@ class Restaurant(models.Model):
     capacity = models.IntegerField(default=50, help_text="Maximum number of guests")
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal('0.0'), validators=[MinValueValidator(Decimal('0.0')), MaxValueValidator(Decimal('5.0'))])
     image_url = models.TextField(blank=True, null=True, help_text="Main restaurant image")  # Allow any length
+    # Stored local copy of cover image (auto-downloaded from image_url if provided)
+    image_file = models.ImageField(upload_to='restaurants/covers/', blank=True, null=True)
     opening_time = models.CharField(max_length=64, blank=True, null=True, help_text="Opening time (any format)")
     closing_time = models.CharField(max_length=64, blank=True, null=True, help_text="Closing time (any format)")
+    # Geolocation (optional). Increase precision to allow more decimals
+    latitude = models.DecimalField(max_digits=18, decimal_places=12, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=18, decimal_places=12, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_featured = models.BooleanField(default=False, help_text="Featured restaurants appear on homepage")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -182,15 +187,11 @@ class OfferTimeSlot(models.Model):
         return f"{self.offer.restaurant.name} {self.offer.title} @ {self.start_time}"
 
     def clean(self):
-        # Validate 30-minute grid
-        if self.start_time.minute not in (0, 30) or self.end_time.minute not in (0, 30):
-            from django.core.exceptions import ValidationError
-            raise ValidationError("Timeslot minutes must be 00 or 30")
-        # Enforce 30-minute duration by default
+        # Flexible duration: only require end > start
         dur = self.end_time.hour * 60 + self.end_time.minute - (self.start_time.hour * 60 + self.start_time.minute)
-        if dur != 30:
+        if dur <= 0:
             from django.core.exceptions import ValidationError
-            raise ValidationError("Timeslot duration must be exactly 30 minutes")
+            raise ValidationError("Timeslot end_time must be after start_time")
 
     # NOTE: Remember to run makemigrations/migrate after adding this model.
 
@@ -201,7 +202,7 @@ class Booking(models.Model):
         ('cancelled', 'Cancelled'),
         ('completed', 'Completed'),
     )
-    diner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bookings')
+    diner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
     offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='bookings', null=True, blank=True)
     slot = models.ForeignKey('BookingSlot', on_delete=models.SET_NULL, null=True, blank=True, related_name='slot_bookings', help_text="The concrete BookingSlot reserved (if using slot system)")
@@ -266,11 +267,22 @@ class BookingSlot(models.Model):
 
     @property
     def remaining_capacity(self):
+        """Remaining capacity considering confirmed bookings and active holds.
+
+        Holds are counted if status='active' and not expired.
+        """
         if self.capacity == 0:
             return None  # Unlimited
         from django.db.models import Sum
+        from django.utils import timezone
         booked = self.slot_bookings.aggregate(total=Sum('number_of_people'))['total'] or 0
-        return max(0, self.capacity - booked)
+        # Subtract active holds that haven't expired
+        try:
+            active_holds = self.holds.filter(status='active', expires_at__gt=timezone.now())
+            held = active_holds.aggregate(total=Sum('party_size'))['total'] or 0
+        except Exception:
+            held = 0
+        return max(0, self.capacity - booked - held)
 
     def is_full(self):
         rc = self.remaining_capacity
@@ -291,3 +303,46 @@ class BookingSlot(models.Model):
         if delta.total_seconds() < self.lead_time_minutes * 60:
             return 'closed'
         return 'open'
+
+
+class BookingHold(models.Model):
+    """A temporary capacity reservation for a concrete BookingSlot.
+
+    Used to prevent overselling while the user is completing checkout.
+    """
+    STATUS_CHOICES = (
+        ('active', 'Active'),
+        ('released', 'Released'),
+        ('confirmed', 'Confirmed'),
+        ('expired', 'Expired'),
+    )
+    hold_id = models.CharField(max_length=40, unique=True)
+    slot = models.ForeignKey(BookingSlot, on_delete=models.CASCADE, related_name='holds')
+    party_size = models.PositiveIntegerField()
+    contact = models.JSONField(default=dict)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Booking Hold'
+        verbose_name_plural = 'Booking Holds'
+        indexes = [
+            models.Index(fields=['hold_id']),
+            models.Index(fields=['status', 'expires_at']),
+        ]
+
+    def __str__(self):
+        return f"Hold {self.hold_id} for slot {self.slot_id} ({self.party_size})"
+
+    def is_expired(self):
+        from django.utils import timezone
+        return self.expires_at <= timezone.now() or self.status == 'expired'
+
+    def mark_expired_if_needed(self):
+        from django.utils import timezone
+        if self.status == 'active' and self.expires_at <= timezone.now():
+            self.status = 'expired'
+            self.save(update_fields=['status'])
+        return self.status

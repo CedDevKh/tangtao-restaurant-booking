@@ -50,7 +50,7 @@ interface Offer {
   is_available_today: boolean;
 }
 
-const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000'));
+import { buildApiUrl } from '@/lib/base-url';
 
 // Inline SVG icons to prevent hydration errors
 const SearchIcon = ({ className }: { className?: string }) => (
@@ -106,15 +106,28 @@ export default function SearchPage() {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/restaurants/?is_active=true&ordering=-rating,-created_at`);
-        if (response.ok) {
-          const data = await response.json();
-          const restaurantData = data.results || data;
+  const url = buildApiUrl('/api/restaurants/?is_active=true&ordering=-rating,-created_at');
+        console.log('[SearchPage] Fetching restaurants from', url);
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn('[SearchPage] Non-OK response', response.status, response.statusText);
+        }
+        const data = await response.json().catch(err => {
+          console.error('[SearchPage] JSON parse error', err);
+          return null;
+        });
+        if (data) {
+          const restaurantData = (data as any).results || data;
           setRestaurants(restaurantData);
           setFilteredRestaurants(restaurantData);
+        } else {
+          setRestaurants([]);
+          setFilteredRestaurants([]);
         }
-      } catch (error) {
-        console.error('Failed to fetch restaurants:', error);
+      } catch (error: any) {
+        console.error('[SearchPage] Failed to fetch restaurants:', error?.message || error);
+        setRestaurants([]);
+        setFilteredRestaurants([]);
       } finally {
         setLoading(false);
       }
@@ -244,7 +257,7 @@ export default function SearchPage() {
                         {restaurant.featured_offer && (
                           <Badge className="absolute -bottom-1 -left-1 bg-orange-500 text-white text-xs">
                             {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage
-                              ? `${restaurant.featured_offer.discount_percentage}% OFF`
+                              ? `Up to ${restaurant.featured_offer.discount_percentage}% OFF`
                               : restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount
                               ? `$${restaurant.featured_offer.discount_amount} OFF`
                               : 'OFFER'

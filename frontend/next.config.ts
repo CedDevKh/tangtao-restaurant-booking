@@ -2,6 +2,9 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Disable React Strict Mode to prevent double-invocation of effects in dev,
+  // which can cause Leaflet to initialize the same map container twice.
+  reactStrictMode: false,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -37,6 +40,12 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'dynamic-media-cdn.tripadvisor.com',
         port: '',
         pathname: '/**',
       },

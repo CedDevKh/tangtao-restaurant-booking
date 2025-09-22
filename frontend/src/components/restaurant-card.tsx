@@ -1,18 +1,19 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Restaurant } from "@/lib/types";
+import { mediaUrl } from "@/lib/media";
 import { Star, MapPin } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
+import { buildApiUrl } from "@/lib/base-url";
 
 type RestaurantCardProps = {
   restaurant: Restaurant;
 };
 
-const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000')).replace(/\/$/, '');
+// Centralized base URL helper ensures consistent CORS + no trailing slash issues
 
 type TimeslotEntry = { time: string; discount_percent: number | null; source: 'slot'|'offer'|'both'; slot_id?: number|null; offer_id?: number|null };
 
@@ -25,7 +26,7 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
     const fetchSlots = async () => {
       try {
         const token = getAuthToken();
-        const res = await fetch(`${API_URL}/api/offers/timeslots/?restaurant=${restaurant.id}&date=${todayIso}&limit=6`, {
+  const res = await fetch(buildApiUrl(`/api/offers/timeslots/?restaurant=${restaurant.id}&date=${todayIso}&limit=6`), {
           headers: token ? { 'Authorization': `Token ${token}` } : undefined,
           cache: 'no-store',
         });
@@ -41,18 +42,33 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
     return () => { ignore = true; };
   }, [restaurant.id, todayIso]);
 
+  // Determine image source: prefer cover_image_url if exposed by API, else imageUrl field
+  const rawImg: any = (restaurant as any).cover_image_url || (restaurant as any).image_url || (restaurant as any).imageUrl;
+  const img = mediaUrl(rawImg);
   return (
-    <Card className="flex h-full flex-col overflow-hidden transition-transform duration-200 hover:scale-105 hover:shadow-xl">
-      <CardHeader className="p-0">
-        <Link href={`/restaurants/${restaurant.id}`} className="block">
-          <Image
-            src={restaurant.imageUrl}
-            alt={`Photo of ${restaurant.name}`}
-            width={600}
-            height={400}
-            className="h-48 w-full object-cover"
-            data-ai-hint={restaurant.dataAiHint}
-          />
+    <Card className="flex h-full flex-col overflow-hidden transition-transform duration-200 hover:scale-105 hover:shadow-xl border border-neutral-800">
+      <CardHeader className="p-0 relative h-48 w-full bg-neutral-900">
+        <Link href={`/restaurants/${restaurant.id}`} className="block h-full w-full relative">
+          {img ? (
+            <img
+              src={img}
+              alt={`Photo of ${restaurant.name}`}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                console.warn('[restaurant-card] image load error', restaurant.id, img);
+                const el = e.currentTarget;
+                el.style.opacity = '0.25';
+                const badge = document.createElement('div');
+                badge.textContent = 'Image failed';
+                badge.className = 'absolute inset-0 flex items-center justify-center text-xs font-semibold text-red-400 bg-neutral-950/70';
+                el.parentElement?.appendChild(badge);
+              }}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-red-400 bg-neutral-950/70">
+              No image
+            </div>
+          )}
         </Link>
       </CardHeader>
       <CardContent className="flex-grow p-4">

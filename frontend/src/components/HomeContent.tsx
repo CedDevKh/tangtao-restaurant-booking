@@ -46,6 +46,9 @@ export default function HomeContent({ isLoggedIn, user }: HomeContentProps) {
         <Button asChild size="lg" variant="outline" className="bg-silver-100/20 border-silver-300/50 text-white hover:bg-silver-100/30 backdrop-blur-sm">
           <Link href="/auth/login">Sign In</Link>
         </Button>
+        <Button asChild size="lg" variant="secondary" className="ml-0 md:ml-2">
+          <Link href="/map">Find Nearby</Link>
+        </Button>
       </div>
     </div>
   );

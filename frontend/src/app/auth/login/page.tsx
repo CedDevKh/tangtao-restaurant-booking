@@ -49,46 +49,46 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-      
+    <div className="relative min-h-screen bg-gradient-to-br from-background via-background to-muted/40 dark:from-background dark:via-background dark:to-muted/20">
+      {/* Subtle radial highlight */}
+      <div className="pointer-events-none absolute inset-0 [background:radial-gradient(circle_at_50%_20%,hsl(var(--primary)/0.12),transparent_60%)]" />
+
       {/* Header */}
-      <div className="relative z-10 flex items-center justify-between p-6">
-        <Button 
-          variant="ghost" 
+      <div className="relative z-10 flex items-center justify-between px-6 py-4">
+        <Button
+          variant="ghost"
           onClick={() => router.push('/')}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Home
+          Back
         </Button>
         <div className="flex items-center gap-2">
-          <Utensils className="h-6 w-6 text-orange-600" />
-          <span className="font-bold text-xl text-gray-900">Tangtao</span>
+          <Utensils className="h-6 w-6 text-primary" />
+          <span className="font-headline text-2xl font-bold text-primary">Tangtao</span>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="relative z-10 flex items-center justify-center px-4 pb-16">
         <div className="w-full max-w-md">
-          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+          <Card className="shadow-xl border border-border/50 bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
             <CardHeader className="text-center pb-6">
-              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-r from-orange-500 to-red-500">
-                <Utensils className="h-10 w-10 text-white" />
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 ring-2 ring-primary/20">
+                <Utensils className="h-10 w-10 text-primary" />
               </div>
-              <CardTitle className="text-2xl font-bold text-gray-900">
+              <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
                 Welcome Back
               </CardTitle>
-              <CardDescription className="text-base text-gray-600">
-                Sign in to your account to continue your culinary journey
+              <CardDescription className="text-base text-muted-foreground">
+                Sign in to continue your culinary journey
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
               {error && (
-                <Alert variant="destructive" className="bg-red-50 border-red-200">
-                  <AlertDescription className="text-red-800">
+                <Alert variant="destructive" className="border-destructive/30">
+                  <AlertDescription>
                     {error}
                   </AlertDescription>
                 </Alert>
@@ -96,42 +96,45 @@ export default function LoginPage() {
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="email" className="text-sm font-medium">
                     Email Address
                   </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       type="email"
-                      placeholder="your.email@example.com"
+                      placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-12 border-gray-200 focus:border-orange-500 focus:ring-orange-500"
+                      className="pl-10 h-12 focus-visible:ring-primary"
                       required
+                      autoComplete="email"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="password" className="text-sm font-medium">
                     Password
                   </Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 pr-10 h-12 border-gray-200 focus:border-orange-500 focus:ring-orange-500"
+                      className="pl-10 pr-10 h-12 focus-visible:ring-primary"
                       required
+                      autoComplete="current-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -147,15 +150,15 @@ export default function LoginPage() {
                     <input
                       id="remember"
                       type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                      className="h-4 w-4 rounded border-input bg-background text-primary focus:ring-primary"
                     />
-                    <Label htmlFor="remember" className="text-gray-700">
+                    <Label htmlFor="remember" className="text-muted-foreground">
                       Remember me
                     </Label>
                   </div>
-                  <Link 
-                    href="/auth/forgot-password" 
-                    className="text-orange-600 hover:text-orange-700 font-medium"
+                  <Link
+                    href="/auth/forgot-password"
+                    className="font-medium text-primary hover:underline underline-offset-4"
                   >
                     Forgot password?
                   </Link>
@@ -164,11 +167,11 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-12 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="w-full h-12 bg-primary text-primary-foreground font-semibold shadow-sm hover:bg-primary/90 transition-colors"
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/60 border-t-transparent"></div>
                       Signing in...
                     </div>
                   ) : (
@@ -179,17 +182,17 @@ export default function LoginPage() {
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200"></div>
+                  <div className="w-full border-t border-border/60"></div>
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="bg-white px-4 text-gray-500">New to Tangtao?</span>
+                <div className="relative flex justify-center text-xs uppercase tracking-wide">
+                  <span className="bg-card px-3 text-muted-foreground">New to Tangtao?</span>
                 </div>
               </div>
 
               <Button
                 asChild
                 variant="outline"
-                className="w-full h-12 border-gray-200 text-gray-700 hover:bg-gray-50"
+                className="w-full h-12 border-border/60 hover:bg-primary/10 hover:text-primary"
               >
                 <Link href="/auth/register">
                   Create your account
@@ -200,13 +203,13 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="mt-8 text-center">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               By signing in, you agree to our{' '}
-              <Link href="/terms" className="text-orange-600 hover:underline">
+              <Link href="/terms" className="text-primary hover:underline">
                 Terms of Service
               </Link>{' '}
               and{' '}
-              <Link href="/privacy" className="text-orange-600 hover:underline">
+              <Link href="/privacy" className="text-primary hover:underline">
                 Privacy Policy
               </Link>
             </p>

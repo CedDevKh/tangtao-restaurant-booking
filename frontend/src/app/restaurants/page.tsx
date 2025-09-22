@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { buildApiUrl } from '@/lib/base-url';
+// Intentionally keep next/image import (not actively used for the grid) so we can revert after diagnostics
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { mediaUrl } from '@/lib/media';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import TimeslotChips from '@/components/TimeslotChips';
@@ -34,6 +37,7 @@ interface BackendRestaurant {
   capacity: number;
   rating: number;
   image_url: string;
+  cover_image_url?: string; // added by backend serializer (absolute URL)
   opening_time: string;
   closing_time: string;
   is_active: boolean;
@@ -62,7 +66,7 @@ interface Offer {
   is_available_today: boolean;
 }
 
-const API_URL = (process.env.NEXT_PUBLIC_BACKEND_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000'));
+// Centralized API base
 
 const cuisines = ['italian', 'japanese', 'french', 'mexican', 'indian', 'chinese', 'american', 'thai', 'mediterranean', 'korean', 'vietnamese', 'khmer', 'fine_dining', 'other'];
 const ratings = [4.5, 4.0, 3.5, 0];
@@ -198,7 +202,7 @@ export default function RestaurantsPage() {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/restaurants/?is_active=true`);
+  const response = await fetch(buildApiUrl('/api/restaurants/?is_active=true'));
         if (response.ok) {
           const data = await response.json();
           setRestaurants(data.results || data);
@@ -365,22 +369,56 @@ export default function RestaurantsPage() {
                     {filteredRestaurants.map((restaurant) => (
                       <Card key={restaurant.id} className="group cursor-pointer hover:shadow-lg transition-shadow duration-300">
                         <div className="relative h-48 overflow-hidden rounded-t-lg bg-gray-200">
-                          {restaurant.image_url ? (
-                            <Image
-                              src={restaurant.image_url}
-                              alt={restaurant.name}
-                              fill
-                              className="object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={(e) => {
-                                const img = e.target as HTMLImageElement;
-                                img.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                              <RestaurantIcon className="h-16 w-16 text-gray-400" />
-                            </div>
-                          )}
+                          {(() => {
+                            const raw = restaurant.cover_image_url || restaurant.image_url;
+                            const src = raw ? mediaUrl(raw) : '';
+                            if (!src) {
+                              return (
+                                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                                  <span className="text-[10px] font-mono text-gray-500">NO_IMG</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <>
+                                <img
+                                  src={src}
+                                  alt={restaurant.name}
+                                  data-restaurant-id={restaurant.id}
+                                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  onLoad={(e) => {
+                                    const el = e.currentTarget;
+                                    el.dataset.status = 'loaded';
+                                    // eslint-disable-next-line no-console
+                                    console.log('[restaurant-image] loaded', { id: restaurant.id, src });
+                                  }}
+                                  onError={(e) => {
+                                    const el = e.currentTarget;
+                                    el.dataset.status = 'error';
+                                    // eslint-disable-next-line no-console
+                                    console.warn('[restaurant-image] error', { id: restaurant.id, src });
+                                    const wrapper = el.parentElement;
+                                    if (wrapper && !wrapper.querySelector('.img-error-overlay')) {
+                                      const overlay = document.createElement('div');
+                                      overlay.className = 'img-error-overlay absolute inset-0 flex flex-col items-center justify-center bg-black/55 text-red-200 text-[10px] font-mono p-2 text-center';
+                                      overlay.innerHTML = 'IMG_ERROR';
+                                      wrapper.appendChild(overlay);
+                                    }
+                                  }}
+                                />
+                                {!restaurant.cover_image_url && restaurant.image_url && (
+                                  <div className="absolute bottom-1 left-1 bg-black/60 text-[10px] text-yellow-300 px-1 rounded">
+                                    legacy
+                                  </div>
+                                )}
+                                {restaurant.cover_image_url && (
+                                  <div className="absolute bottom-1 left-1 bg-black/60 text-[10px] text-green-300 px-1 rounded">
+                                    cover
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                           {restaurant.is_featured && (
                             <Badge className="absolute top-2 left-2 bg-yellow-500 text-black">
                               <StarIcon className="h-3 w-3 mr-1" />
@@ -393,7 +431,7 @@ export default function RestaurantsPage() {
                           {restaurant.featured_offer && (
                             <Badge className="absolute bottom-2 left-2 bg-red-500 text-white font-bold">
                               {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage
-                                ? `${restaurant.featured_offer.discount_percentage}% OFF`
+                                ? `Up to ${restaurant.featured_offer.discount_percentage}% OFF`
                                 : restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount
                                 ? `$${restaurant.featured_offer.discount_amount} OFF`
                                 : 'SPECIAL OFFER'
@@ -449,9 +487,9 @@ export default function RestaurantsPage() {
                                   </p>
                                 </div>
                                 <div className="text-right">
-                                  {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage && (
+                  {restaurant.featured_offer.offer_type === 'percentage' && restaurant.featured_offer.discount_percentage && (
                                     <div className="font-bold text-red-800 dark:text-red-200">
-                                      {restaurant.featured_offer.discount_percentage}% OFF
+                    Up to {restaurant.featured_offer.discount_percentage}% OFF
                                     </div>
                                   )}
                                   {restaurant.featured_offer.offer_type === 'amount' && restaurant.featured_offer.discount_amount && (
@@ -472,10 +510,10 @@ export default function RestaurantsPage() {
                           )}
                           <div className="mt-4">
                             <Link
-                              href={`/restaurants/${restaurant.id}`}
+                              href={`/book/${restaurant.id}`}
                               className="w-full inline-block text-center bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded transition-colors"
                             >
-                              View Details
+                              Book / Details
                             </Link>
                           </div>
                           <div className="mt-3">

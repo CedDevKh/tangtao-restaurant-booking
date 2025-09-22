@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+  /* Hint browsers to render built-in UI in light mode by default */
+  color-scheme: light;
     --background: 0 0% 100%; /* White background */
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -27,6 +29,8 @@
   }
 
   .dark {
+  /* Ensure native controls (inputs, selects, scrollbars) follow dark styling */
+  color-scheme: dark;
     --background: 240 10% 3.9%; /* Dark background */
     --foreground: 210 40% 98%;
     --card: 240 10% 3.9%;
@@ -96,4 +100,69 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* Leaflet popup customization to blend with app theme */
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: transparent; /* remove default white */
+  box-shadow: none;
+}
+.leaflet-popup-content {
+  margin: 0; /* remove internal margin */
+  line-height: normal;
+}
+.leaflet-popup-close-button {
+  top: 6px;
+  right: 8px;
+  color: #fff;
+}
+
+/* Narrow popup container so card controls sizing */
+.leaflet-popup-content-wrapper {
+  padding: 0; /* card has its own padding */
+}
+
+/* Map restaurant card specific adjustments */
+.map-restaurant-card {
+  /* Use theme tokens so card adapts to light/dark */
+  background: hsl(var(--card) / 0.92);
+  color: hsl(var(--card-foreground));
+  backdrop-filter: saturate(130%) blur(6px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  box-shadow: 0 6px 24px -4px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.dark .map-restaurant-card {
+  background: hsl(var(--card) / 0.85);
+  border-color: hsl(var(--border) / 0.4);
+}
+.map-restaurant-card a:hover { color: hsl(var(--primary)); }
+.map-restaurant-card img { filter: brightness(0.95); }
+.map-restaurant-card .offers-scroll { scrollbar-width: thin; }
+
+/* Stronger override to eliminate Leaflet default white popup frame */
+.leaflet-popup-content-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.leaflet-popup-content {
+  margin: 0 !important;
+  width: auto !important; /* let card define width */
+}
+.leaflet-popup-tip-container, .leaflet-popup-tip {
+  display: none !important; /* hide arrow tip */
+}
+.leaflet-popup {
+  margin: 0 !important;
+}
+.leaflet-popup-close-button {
+  background: rgba(0,0,0,0.5) !important;
+  border-radius: 9999px;
+  width: 20px; height: 20px;
+  line-height: 20px;
+  text-align: center;
 }

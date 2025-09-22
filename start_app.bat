@@ -17,8 +17,11 @@ if not exist "frontend\.env.local" (
     echo.
 )
 
-echo Starting Django Backend on http://localhost:8000...
-start "Django Backend" cmd /k "cd backend\core && python manage.py runserver"
+echo Purging expired offers...
+start "Django Cleanup" cmd /k "cd backend\core && python manage.py purge_expired_offers && exit"
+
+echo Starting Django Backend on http://0.0.0.0:8000...
+start "Django Backend" cmd /k "cd backend\core && python manage.py runserver 0.0.0.0:8000"
 
 echo Waiting 3 seconds for backend to start...
 timeout /t 3 /nobreak >nul

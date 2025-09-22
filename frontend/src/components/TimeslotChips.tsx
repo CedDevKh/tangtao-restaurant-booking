@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { getAuthToken } from "@/lib/api";
+import { buildApiUrl } from "@/lib/base-url";
 
 type TimeslotEntry = {
   time: string;
@@ -14,7 +15,7 @@ type TimeslotEntry = {
 };
 
 export function TimeslotChips({ restaurantId, limit = 6 }: { restaurantId: number | string; limit?: number }) {
-  const API_URL = useMemo(() => (process.env.NEXT_PUBLIC_BACKEND_API_URL || "http://localhost:8000").replace(/\/$/, ""), []);
+  // Centralized base URL
   const [slots, setSlots] = useState<TimeslotEntry[] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const todayIso = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -25,7 +26,7 @@ export function TimeslotChips({ restaurantId, limit = 6 }: { restaurantId: numbe
       try {
         const token = getAuthToken();
         const res = await fetch(
-          `${API_URL}/api/offers/timeslots/?restaurant=${restaurantId}&date=${todayIso}&limit=${limit}`,
+          buildApiUrl(`/api/offers/timeslots/?restaurant=${restaurantId}&date=${todayIso}&limit=${limit}`),
           { headers: token ? { Authorization: `Token ${token}` } : undefined, cache: "no-store" }
         );
         const data = await res.json().catch(() => null);
@@ -41,7 +42,7 @@ export function TimeslotChips({ restaurantId, limit = 6 }: { restaurantId: numbe
     return () => {
       ignore = true;
     };
-  }, [API_URL, restaurantId, todayIso, limit]);
+  }, [restaurantId, todayIso, limit]);
 
   if (!loaded || !slots || slots.length === 0) return null;
 

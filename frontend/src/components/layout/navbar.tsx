@@ -57,6 +57,7 @@ export default function Navbar({ className }: { className?: string }) {
   const getNavLinks = () => {
     const baseLinks = [
       { href: "/", label: "Home" },
+  { href: "/map", label: "Map" },
       { href: "/restaurants", label: "Restaurants" },
       { href: "/bookings", label: "My Bookings" },
       { href: "/recommendations", label: "AI Picks" },
